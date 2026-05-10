@@ -491,6 +491,7 @@ function renderTopicCard(topic) {
 
       <div class="sources-list">${sourcesHtml || '<span class="badge">Surse indisponibile</span>'}</div>
 
+      ${renderOnlineArticleLinks(topic)}
       <div class="card-actions">
         <button class="btn btn-primary" data-action="brief" data-id="${escapeAttr(topic.id)}" type="button">Brief</button>
         <button class="btn" data-action="titles" data-id="${escapeAttr(topic.id)}" type="button">SEO complet</button>
