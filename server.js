@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Radar Editorial PRO – General Post One Software.
+ * General Pos One - RADAR EDITORIAL PRO – General Post One Software.
  * Nu necesită acces de admin în WordPress și nu instalează pluginuri.
  * Rulează separat, citește surse publice și verifică oficiuldestiri.ro prin endpointuri/public pages.
  *
@@ -115,7 +115,7 @@ async function main() {
   });
 
   server.listen(PORT, () => {
-    console.log(`Radar Editorial PRO rulează pe http://localhost:${PORT}`);
+    console.log(`General Pos One - RADAR EDITORIAL PRO rulează pe http://localhost:${PORT}`);
     console.log(`Oficiul de Știri scan base: ${OFICIU_BASE}`);
   });
 }
