@@ -1116,7 +1116,7 @@ function overlapRatio(items, tokens) {
   const cleanItems = items.filter(Boolean);
   if (!cleanItems.length) return 0;
   const matches = cleanItems.filter((item) => tokenSet.has(item) || significantTokens(item).some((t) => tokenSet.has(t))).length;
-  return matches / cleanItems.length;
+  return { matches, onlineCount: cleanItems.length };
 }
 
 function stableId(text) {
