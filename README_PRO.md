@@ -1,4 +1,4 @@
-# Radar Editorial PRO – Oficiul de Știri
+# Radar Editorial PRO
 
 Versiune externă, fără pluginuri și fără acces WordPress admin.
 
