@@ -1,0 +1,12 @@
+{
+  "name": "radar-editorial-oficiul-v4-functional",
+  "version": "4.0.0",
+  "description": "Radar Editorial Oficiul V4 cu prompt GPT Pro, contacte, drafturi, linkuri si poze.",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

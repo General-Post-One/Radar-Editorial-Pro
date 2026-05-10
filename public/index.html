@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Radar Editorial PRO – GPT Workflow</title>
+  <meta name="description" content="Dashboard extern pentru subiecte fierbinți, căutate de români, cu verificare publică anti-duplicare pe oficiuldestiri.ro." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Sari la conținut</a>
+
+  <header class="app-header">
+    <div class="header-grid">
+      <div>
+        <p class="eyebrow">General Post One Software</p>
+        <h1>Radar Editorial PRO</h1>
+        <p class="header-copy">Afișează subiecte în intervalul ales, verifică Oficiul de Știri, pregătește brief, SEO, contacte, drafturi și prompt complet.</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-primary" id="refreshBtn" type="button">Pornește Refresh live</button>
+        <button class="btn" id="exportBtn" type="button">Export CSV</button>
+        <button class="btn btn-icon" id="themeBtn" type="button" aria-label="Comută dark mode">🌙</button>
+      </div>
+    </div>
+
+    <div class="status-bar" aria-live="polite">
+      <div class="status-item">
+        <span class="status-dot" id="freshnessDot"></span>
+        <strong>Ultima actualizare:</strong>
+        <span id="lastUpdateLabel">—</span>
+      </div>
+      <div class="status-item"><strong>Mod:</strong> Scanare Publică</div>
+      <div class="status-item warning" id="freshnessAlert" hidden>Datele sunt mai vechi de 15 minute.</div>
+    </div>
+  </header>
+
+  <nav class="category-nav" aria-label="Rubrici principale">
+    <button class="nav-pill active" data-category="toate" type="button">Toate</button>
+    <button class="nav-pill" data-category="Actualitate" type="button">Actualitate</button>
+    <button class="nav-pill" data-category="Breaking News" type="button">Breaking News</button>
+    <button class="nav-pill" data-category="Politică" type="button">Politică</button>
+    <button class="nav-pill" data-category="Business" type="button">Business</button>
+    <button class="nav-pill" data-category="Life" type="button">Life</button>
+    <button class="nav-pill" data-category="Sport" type="button">Sport</button>
+    <button class="nav-pill" data-category="Special" type="button">Special</button>
+    <button class="nav-pill" data-category="Călătorii" type="button">Călătorii</button>
+  </nav>
+
+  <main id="main" class="layout">
+    <aside class="filters-panel" aria-label="Filtre și verificări">
+      <section class="panel-card">
+        <div class="panel-title-row">
+          <h2>Filtrare</h2>
+          <button class="link-button" id="resetFiltersBtn" type="button">Reset</button>
+        </div>
+
+        <label class="field">
+          <span>Caută în subiecte</span>
+          <input id="searchInput" type="search" placeholder="ex: pensii, meteo, Nicușor Dan..." autocomplete="off" />
+        </label>
+
+        <label class="field">
+          <span>Interes</span>
+          <select id="interestFilter">
+            <option value="toate">Toate</option>
+            <option value="Politică">Politică</option>
+            <option value="Economie/Bani">Economie/Bani</option>
+            <option value="Social">Social</option>
+            <option value="Vedete/Showbiz">Vedete/Showbiz</option>
+            <option value="Sport">Sport</option>
+            <option value="Sănătate">Sănătate</option>
+            <option value="Educație">Educație</option>
+            <option value="Justiție">Justiție</option>
+            <option value="Externe relevante pentru români">Externe pentru români</option>
+            <option value="Horoscop/Lifestyle">Horoscop/Lifestyle</option>
+            <option value="Auto">Auto</option>
+            <option value="Travel">Travel</option>
+            <option value="Tehnologie">Tehnologie</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Intensitate</span>
+          <select id="intensityFilter">
+            <option value="toate">Toate</option>
+            <option value="exploziv">Exploziv</option>
+            <option value="ridicat">Ridicat</option>
+            <option value="mediu">Mediu</option>
+            <option value="in-scadere">În scădere</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Interval scanare</span>
+          <select id="ageFilter">
+            <option value="60">0–60 minute</option>
+            <option value="120" selected>0–120 minute</option>
+            <option value="180">0–3 ore</option>
+            <option value="240">0–4 ore</option>
+            <option value="360">0–6 ore</option>
+            <option value="480">0–8 ore</option>
+            <option value="720">0–12 ore</option>
+            <option value="1440">0–24 ore</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Status Oficiul de Știri</span>
+          <select id="coverageFilter">
+            <option value="neacoperit">Doar neacoperite</option>
+            <option value="posibil-similar">Posibil similare</option>
+            <option value="toate">Toate eligibile</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Sortare</span>
+          <select id="sortFilter">
+            <option value="priority">Scor prioritate</option>
+            <option value="recency">Cele mai noi</option>
+            <option value="trend">Scor interes</option>
+            <option value="risk">Risc editorial</option>
+          </select>
+        </label>
+
+        <label class="checkbox-row">
+          <input id="includeBlocked" type="checkbox" />
+          <span>Arată și subiectele blocate pentru audit</span>
+        </label>
+      </section>
+
+      <section class="panel-card connector-card">
+        <h2>Ce scanează</h2>
+        <ul>
+          <li>Google Trends RSS / Trending Now, dacă setezi URL-ul RSS</li>
+          <li>Google News RSS România cu interval ales: 0–60 min până la 0–24 h</li>
+          <li>oficiuldestiri.ro prin WP REST public rapid; search intern/sitemap doar opțional</li>
+          <li>auto-refresh la 3 minute după ce apeși Refresh live, inclusiv când ești în alt tab</li>
+        </ul>
+      </section>
+    </aside>
+
+    <section class="content-area" aria-label="Subiecte recomandate">
+      <section class="metrics-grid" aria-label="Indicatori editoriali">
+        <article class="metric-card">
+          <span>Eligibile</span>
+          <strong id="eligibleMetric">—</strong>
+          <small>în intervalul ales, neacoperite</small>
+        </article>
+        <article class="metric-card">
+          <span>Verificate</span>
+          <strong id="checkedMetric">—</strong>
+          <small>cu scanare Oficiul de Știri</small>
+        </article>
+        <article class="metric-card">
+          <span>Blocate</span>
+          <strong id="blockedMetric">—</strong>
+          <small>duplicate / vechi / insuficient verificate</small>
+        </article>
+        <article class="metric-card">
+          <span>Top scor</span>
+          <strong id="topScoreMetric">—</strong>
+          <small>prioritate editorială</small>
+        </article>
+      </section>
+
+      <section class="notice-card" id="sourceNotice">
+        <strong>PRO:</strong> scorul de interes este intern. Folosește butoanele de pe card pentru Brief, SEO, contacte, Draft, linkuri, poze și Prompt articol.
+      </section>
+
+      <div class="toolbar-row">
+        <div>
+          <h2>Subiecte fierbinți</h2>
+          <p id="resultsSummary">Se încarcă fluxurile...</p>
+        </div>
+        <div class="loader" id="loader" aria-label="Se încarcă"></div>
+      </div>
+
+      <section class="topics-grid" id="topicsGrid" aria-live="polite"></section>
+      <section class="empty-state" id="emptyState" hidden>
+        <h3>Nu există subiecte eligibile pentru filtrele curente</h3>
+        <p>Activează „Arată și subiectele blocate” ca să vezi de ce au fost eliminate sau apasă Refresh live.</p>
+      </section>
+    </section>
+  </main>
+
+  <dialog class="brief-dialog" id="briefDialog">
+    <div class="dialog-header">
+      <h2 id="dialogTitle">Brief editorial</h2>
+      <button class="btn btn-icon" id="closeDialogBtn" type="button" aria-label="Închide">×</button>
+    </div>
+    <div id="dialogBody" class="dialog-body"></div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
