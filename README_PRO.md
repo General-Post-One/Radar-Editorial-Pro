@@ -1,4 +1,4 @@
-# General Pos One - RADAR EDITORIAL PRO
+# Radar Editorial PRO
 
 Versiune externă, fără pluginuri și fără acces WordPress admin.
 
