@@ -484,6 +484,8 @@ async function enrichTopicWithCoverage(topic, maxAgeMinutes = MAX_AGE_MINUTES) {
 
   return {
     ...topic,
+    onlineCount: coverage.onlineCount ?? null,
+    onlineMatches: coverage.onlineMatches || [],
     priorityScore,
     recommendation,
     coverage,
@@ -516,6 +518,8 @@ async function checkOficiuCoverage(topic, options = {}) {
   const sitemapMatches = (!FAST_OFICIU_SCAN || deepScan) ? await fetchSitemapCandidates(topic, errors) : [];
   matches.push(...sitemapMatches);
 
+  const onlineArticles = await fetchGoogleNewsOnlineArticles(topic, errors);
+
   const deduped = uniqueBy(matches, (m) => m.url || `${m.source}|${m.title}`)
     .filter((m) => m.title || m.slug || m.url)
     .map((m) => ({
@@ -532,6 +536,8 @@ async function checkOficiuCoverage(topic, options = {}) {
   return {
     status,
     similarity,
+    onlineCount: onlineArticles.count,
+    onlineMatches: onlineArticles.matches,
     label: status === 'neacoperit' ? 'Neacoperit' : status === 'posibil-similar' ? 'Posibil acoperit' : 'Deja acoperit',
     bestMatch: best,
     matches: deduped,
@@ -735,6 +741,49 @@ async function fetchSerpApi(q, errors) {
     errors.push({ method: 'serpapi', q, error: error.message });
     return [];
   }
+}
+
+
+async function fetchGoogleNewsOnlineArticles(topic, errors) {
+  const queries = buildCoverageQueries(topic).slice(0, 6);
+  const topicTokens = significantTokens(`${topic.title || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')}`);
+  const out = [];
+
+  for (const q of queries) {
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ro&gl=RO&ceid=RO:ro`;
+
+    try {
+      const xml = await cached(`google-news-online:${q}`, Math.min(CACHE_TTL_MS, 15 * 60 * 1000), () => fetchText(url));
+      const items = parseRssItems(xml);
+
+      for (const item of items) {
+        const itemTokens = significantTokens(`${item.title || ''} ${item.description || ''}`);
+        const sim = jaccard(topicTokens, itemTokens);
+        const overlap = itemTokens.filter((t) => topicTokens.includes(t)).length;
+
+        if (sim >= 0.16 || overlap >= 3) {
+          out.push({
+            source: item.source || inferHost(item.link) || 'Google News',
+            title: cleanNewsTitle(item.title || ''),
+            url: item.link || '',
+            publishedAt: item.pubDate || '',
+            similarity: Math.round(sim * 100)
+          });
+        }
+      }
+    } catch (error) {
+      errors.push({ method: 'google-news-online', q, error: error.message });
+    }
+  }
+
+  const unique = uniqueBy(out, (item) => item.url || `${normalize(item.source)}|${normalize(item.title)}`)
+    .filter((item) => item.title || item.url)
+    .sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+
+  return {
+    count: unique.length,
+    matches: unique.slice(0, 10)
+  };
 }
 
 async function fetchSitemapCandidates(topic, errors) {
@@ -1116,7 +1165,7 @@ function overlapRatio(items, tokens) {
   const cleanItems = items.filter(Boolean);
   if (!cleanItems.length) return 0;
   const matches = cleanItems.filter((item) => tokenSet.has(item) || significantTokens(item).some((t) => tokenSet.has(t))).length;
-  return { matches, onlineCount: cleanItems.length };
+  return matches / cleanItems.length;
 }
 
 function stableId(text) {
