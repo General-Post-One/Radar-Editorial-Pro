@@ -337,7 +337,7 @@ function updateNotice(data) {
     ? `${pluralAu(errors)} ${errors} ${pluralSursa(errors)} care nu au răspuns, dar dashboardul a continuat cu restul fluxurilor.`
     : 'Fluxurile au fost citite. PRO strict: intră doar subiecte cu dată publică în intervalul ales; linkurile nested fără dată sunt ascunse.';
 
-  el.sourceNotice.innerHTML = `<strong>Scanare externă:</strong> ${escapeHtml(message)} Nu este nevoie de pluginuri sau acces de admin WordPress.`;
+  el.sourceNotice.innerHTML = `<strong>Scanare externă:</strong> ${escapeHtml(message)}`;
 }
 
 function setLoading(isLoading) {
