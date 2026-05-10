@@ -436,7 +436,7 @@ function renderTopicCard(topic) {
         <div class="data-cell"><span>Indice Google Trends</span><strong>${escapeHtml(topic.trendsIndexLabel || 'n/a')}</strong></div>
         <div class="data-cell"><span>Volum estimat căutări</span><strong>${escapeHtml(topic.estimatedVolume || '—')}</strong></div>
         <div class="data-cell"><span>Vechime subiect</span><strong>${formatMinutes(topic.startedMinutesAgo)}</strong></div>
-        <div class="data-cell"><span>Surse în interval</span><strong>${topic.sourceCount || (topic.sources || []).length}</strong></div>
+        <div class="data-cell"><span>Surse detectate de radar</span><strong>${topic.sourceCount || (topic.sources || []).length}</strong></div>
         <div class="data-cell"><span>Risc editorial</span><strong>${escapeHtml(topic.risk || 'mediu')}</strong></div>
         <div class="data-cell"><span>Acoperit de Oficiul de Știri</span><strong>${coverage.status === 'deja-acoperit' ? 'DA' : coverage.status === 'posibil-similar' ? 'POSIBIL' : 'NU'}</strong></div>
         <div class="data-cell"><span>Recomandare</span><strong>${escapeHtml(topic.recommendation || 'monitorizează')}</strong></div>
@@ -494,7 +494,7 @@ function showBrief(topic) {
     <h3>Pe scurt</h3>
     <ul>
       <li>Subiect în intervalul selectat: ${escapeHtml(formatMinutes(topic.startedMinutesAgo))}.</li>
-      <li>Surse în interval: ${formatSourceCount(topic.sourceCount || (topic.sources || []).length)}.</li>
+      <li>Surse detectate de radar: ${formatSourceCount(topic.sourceCount || (topic.sources || []).length)}.</li>
       <li>Recomandare: ${escapeHtml(topic.recommendation || 'monitorizează')}.</li>
       <li>Risc editorial: ${escapeHtml(topic.risk || 'mediu')}.</li>
     </ul>
@@ -752,7 +752,7 @@ ${buildLead(topic)}
 ## Pe scurt
 
 - Subiect detectat în intervalul ales: ${formatMinutes(topic.startedMinutesAgo)}.
-- Surse în interval: ${formatSourceCount(topic.sourceCount || (topic.sources || []).length)}.
+- Surse detectate de radar: ${formatSourceCount(topic.sourceCount || (topic.sources || []).length)}.
 - Acoperire Oficiul de Știri: ${(topic.coverage || {}).label || 'Neacoperit'}.
 - Risc editorial: ${topic.risk || 'mediu'}.
 
