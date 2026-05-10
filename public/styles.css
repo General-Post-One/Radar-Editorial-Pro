@@ -606,3 +606,37 @@ input, select {
   flex-wrap: wrap;
   margin-top: 14px;
 }
+
+.online-article-links {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.online-article-links strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #374151;
+}
+
+.online-article-links ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.online-article-links li {
+  margin: 5px 0;
+  line-height: 1.35;
+}
+
+.online-article-links a {
+  color: #0b63ce;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.online-article-links a:hover {
+  text-decoration: underline;
+}

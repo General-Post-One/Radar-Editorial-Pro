@@ -321,6 +321,46 @@ function pluralAu(count) {
   return Number(count) === 1 ? 'A existat' : 'Au existat';
 }
 
+
+function getRadarSourceCount(topic) {
+  return Number(topic?.sourceCount || (topic?.sources || []).length || 0);
+}
+
+function getOnlineCount(topic) {
+  const radarCount = getRadarSourceCount(topic);
+  const onlineCount = Number(topic?.onlineCount || 0);
+  if (Number.isFinite(onlineCount) && onlineCount > 0) {
+    return Math.max(onlineCount, radarCount);
+  }
+  return radarCount || '—';
+}
+
+function renderOnlineArticleLinks(topic) {
+  const online = Array.isArray(topic?.onlineMatches) ? topic.onlineMatches : [];
+  const fallback = Array.isArray(topic?.sources) ? topic.sources : [];
+  const items = (online.length ? online : fallback)
+    .filter((item) => item && (item.url || item.link))
+    .slice(0, 10);
+
+  if (!items.length) return '';
+
+  return `
+    <div class="online-article-links">
+      <strong>Articole / surse găsite online</strong>
+      <ul>
+        ${items.map((item, index) => {
+          const url = item.url || item.link || '#';
+          const title = item.title || item.name || item.source || `Articol ${index + 1}`;
+          const source = item.source || item.name || '';
+          const label = source ? `${source}: ${title}` : title;
+          return `<li><a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a></li>`;
+        }).join('')}
+      </ul>
+    </div>
+  `;
+}
+
+
 function formatSourceCount(count) {
   const n = Number(count || 0);
   return `${n} ${pluralSursa(n)}`;
@@ -437,7 +477,7 @@ function renderTopicCard(topic) {
         <div class="data-cell"><span>Volum estimat căutări</span><strong>${escapeHtml(topic.estimatedVolume || '—')}</strong></div>
         <div class="data-cell"><span>Vechime subiect</span><strong>${formatMinutes(topic.startedMinutesAgo)}</strong></div>
         <div class="data-cell"><span>Surse detectate de radar</span><strong>${topic.sourceCount || (topic.sources || []).length}</strong></div>
-        <div class="data-cell"><span>Articole găsite online</span><strong>${topic.onlineCount ?? "—"}</strong></div>
+        
         <div class="data-cell"><span>Risc editorial</span><strong>${escapeHtml(topic.risk || 'mediu')}</strong></div>
         <div class="data-cell"><span>Acoperit de Oficiul de Știri</span><strong>${coverage.status === 'deja-acoperit' ? 'DA' : coverage.status === 'posibil-similar' ? 'POSIBIL' : 'NU'}</strong></div>
         <div class="data-cell"><span>Recomandare</span><strong>${escapeHtml(topic.recommendation || 'monitorizează')}</strong></div>
