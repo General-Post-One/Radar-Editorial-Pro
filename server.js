@@ -451,7 +451,7 @@ function toTopic(group, maxAgeMinutes = MAX_AGE_MINUTES) {
 }
 
 async function enrichTopicWithCoverage(topic, maxAgeMinutes = MAX_AGE_MINUTES) {
-  const coverage = await checkOficiuCoverage(topic);
+  const coverage = await checkOficiuCoverage(topic, { maxAgeMinutes });
   const coverageScore = coverage.status === 'neacoperit' ? 100 : coverage.status === 'posibil-similar' ? 55 : 0;
   const recencyScore = clamp(100 - (topic.startedMinutesAgo / maxAgeMinutes) * 100, 0, 100);
   const priorityScore = calculatePriority({
@@ -499,6 +499,7 @@ async function enrichTopicWithCoverage(topic, maxAgeMinutes = MAX_AGE_MINUTES) {
 async function checkOficiuCoverage(topic, options = {}) {
   const queries = buildCoverageQueries(topic);
   const deepScan = Boolean(options.deep);
+  const maxAgeMinutes = Number(options.maxAgeMinutes || MAX_AGE_MINUTES);
   const errors = [];
   const matches = [];
 
@@ -518,7 +519,7 @@ async function checkOficiuCoverage(topic, options = {}) {
   const sitemapMatches = (!FAST_OFICIU_SCAN || deepScan) ? await fetchSitemapCandidates(topic, errors) : [];
   matches.push(...sitemapMatches);
 
-  const onlineArticles = await fetchGoogleNewsOnlineArticles(topic, errors);
+  const onlineArticles = await fetchGoogleNewsOnlineArticles(topic, errors, maxAgeMinutes);
 
   const deduped = uniqueBy(matches, (m) => m.url || `${m.source}|${m.title}`)
     .filter((m) => m.title || m.slug || m.url)
@@ -744,19 +745,25 @@ async function fetchSerpApi(q, errors) {
 }
 
 
-async function fetchGoogleNewsOnlineArticles(topic, errors) {
+async function fetchGoogleNewsOnlineArticles(topic, errors, maxAgeMinutes = MAX_AGE_MINUTES) {
   const queries = buildCoverageQueries(topic).slice(0, 6);
+  const now = new Date();
+  const whenHours = Math.max(1, Math.ceil(maxAgeMinutes / 60));
+  const when = `when:${whenHours}h`;
   const topicTokens = significantTokens(`${topic.title || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')}`);
   const out = [];
 
   for (const q of queries) {
-    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ro&gl=RO&ceid=RO:ro`;
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(`${q} ${when}`)}&hl=ro&gl=RO&ceid=RO:ro`;
 
     try {
       const xml = await cached(`google-news-online:${q}`, Math.min(CACHE_TTL_MS, 15 * 60 * 1000), () => fetchText(url));
       const items = parseRssItems(xml);
 
       for (const item of items) {
+        if (!item.pubDate) continue;
+        const ageMinutes = Math.round((now - new Date(item.pubDate)) / 60000);
+        if (!Number.isFinite(ageMinutes) || ageMinutes < 0 || ageMinutes > maxAgeMinutes) continue;
         const itemTokens = significantTokens(`${item.title || ''} ${item.description || ''}`);
         const sim = jaccard(topicTokens, itemTokens);
         const overlap = itemTokens.filter((t) => topicTokens.includes(t)).length;

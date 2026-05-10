@@ -346,7 +346,7 @@ function renderOnlineArticleLinks(topic) {
 
   return `
     <div class="online-article-links">
-      <strong>Articole / surse găsite online</strong>
+      <strong>Articole / surse online în interval</strong>
       <ul>
         ${items.map((item, index) => {
           const url = item.url || item.link || '#';
@@ -477,7 +477,7 @@ function renderTopicCard(topic) {
         <div class="data-cell"><span>Volum estimat căutări</span><strong>${escapeHtml(topic.estimatedVolume || '—')}</strong></div>
         <div class="data-cell"><span>Vechime subiect</span><strong>${formatMinutes(topic.startedMinutesAgo)}</strong></div>
         <div class="data-cell"><span>Surse detectate de radar</span><strong>${topic.sourceCount || (topic.sources || []).length}</strong></div>
-        <div class="data-cell"><span>Articole găsite online</span><strong>${getOnlineCount(topic)}</strong></div>
+        <div class="data-cell"><span>Articole online în interval</span><strong>${getOnlineCount(topic)}</strong></div>
         
         <div class="data-cell"><span>Risc editorial</span><strong>${escapeHtml(topic.risk || 'mediu')}</strong></div>
         <div class="data-cell"><span>Acoperit de Oficiul de Știri</span><strong>${coverage.status === 'deja-acoperit' ? 'DA' : coverage.status === 'posibil-similar' ? 'POSIBIL' : 'NU'}</strong></div>
