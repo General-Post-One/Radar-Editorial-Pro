@@ -708,3 +708,10 @@ input, select {
 .online-article-links a:hover {
   text-decoration: underline;
 }
+
+.online-note {
+  margin: 10px 0 0;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+}
