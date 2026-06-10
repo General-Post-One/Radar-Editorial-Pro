@@ -125,6 +125,7 @@ function bindEvents() {
       }
     }
     if (button.dataset.action === 'links') showLinksAndImages(topic);
+    if (button.dataset.action === 'copy-ai') copyTopicForAI(topic, button);
   });
 }
 
@@ -497,9 +498,94 @@ function renderTopicCard(topic) {
 
       <div class="sources-list">${sourcesHtml || '<span class="badge">Surse indisponibile</span>'}</div>
 
+      <div class="card-actions">
+        <button class="btn btn-primary" type="button" data-action="copy-ai" data-id="${escapeAttr(topic.id)}">Copiaza pentru AI</button>
+      </div>
+
       ${renderOnlineArticleLinks(topic)}
     </article>
   `;
+}
+
+
+async function copyTopicForAI(topic, button) {
+  const prompt = buildPromptForAI(topic);
+  try {
+    await navigator.clipboard.writeText(prompt);
+    if (button) {
+      const old = button.textContent;
+      button.textContent = 'Copiat pentru AI';
+      setTimeout(() => { button.textContent = old; }, 1800);
+    }
+  } catch (error) {
+    el.dialogTitle.textContent = 'Prompt pentru AI';
+    el.dialogBody.innerHTML = `
+      <p class="muted">Nu am putut copia automat. Selectează textul de mai jos și copiază-l manual.</p>
+      <textarea class="copy-area" readonly>${escapeHtml(prompt)}</textarea>
+    `;
+    openDialog();
+  }
+}
+
+function buildPromptForAI(topic) {
+  const sources = (topic.sources || [])
+    .filter((source) => source && (source.url || source.link || source.name))
+    .slice(0, 6)
+    .map((source, index) => `${index + 1}. ${source.name || source.domain || 'Sursă'}${source.author ? ` · autor: ${source.author}` : ''}${source.publishedAt ? ` · publicat: ${source.publishedAt}` : ''}\n   Link: ${source.url || source.link || ''}\n   Titlu/descriere: ${source.title || source.description || ''}`)
+    .join('\n');
+
+  const online = (topic.onlineMatches || [])
+    .filter((item) => item && (item.url || item.link))
+    .slice(0, 6)
+    .map((item, index) => `${index + 1}. ${item.title || item.name || 'Articol'}\n   Link: ${item.url || item.link}`)
+    .join('\n');
+
+  const category = topic.category || 'Actualitate';
+  const interest = topic.interest || 'Actualitate';
+  const coverage = topic.coverage || {};
+  const age = typeof topic.startedMinutesAgo === 'number' ? `${topic.startedMinutesAgo} minute` : 'n/a';
+
+  return `Lucrează ca editor Oficiul de Știri, în stilul lui Horia Stoian. Folosește AI doar ca sprijin și direcție, nu copia formulări mecanice. Textul trebuie să fie uman, clar, citit ușor și indexabil pe expresii-cheie uzuale, nu să sune ca un răspuns de Copilot.
+
+SUBIECT DIN RADAR:
+Titlu detectat: ${topic.title || ''}
+Categorie radar: ${category}
+Interes radar: ${interest}
+Vechime: ${age}
+Scor prioritate: ${topic.priorityScore || 'n/a'}
+Status Oficiul: ${coverage.status || 'n/a'} / similaritate ${coverage.similarity || 0}%
+Surse detectate: ${topic.sourceCount || (topic.sources || []).length || 0}
+
+SURSE DETECTATE:
+${sources || 'Nu există surse în card. Cere-mi să verific manual înainte de articol.'}
+
+ARTICOLE / MATCH-URI ÎN INTERVAL:
+${online || 'Nu există match-uri suplimentare.'}
+
+CERINȚE OBLIGATORII:
+1. Fă întâi anti-duplicate pe oficiuldestiri.ro pentru subiect, nume și cuvinte-cheie. Dacă există deja același unghi, spune clar și propune alt unghi, nu scrie dublură.
+2. Verifică informațiile actuale din surse credibile/oficiale. Nu inventa date, reacții, persoane, linkuri, imagini sau citate. Dacă ceva nu se poate verifica, spune clar.
+3. Scrie material gata de copy-paste pentru Oficiul de Știri, maximum o pagină, ideal 550–700 de cuvinte.
+4. Primele 300–400 de cuvinte trebuie să fie foarte bine indexate, cu expresii naturale pe care oamenii le caută pe Google. Bolduiește expresiile SEO în text.
+5. Nu folosi formulări robotice de tip „de ce contează”, „ce urmează” dacă sună șablon. Intertitlurile trebuie să fie finale, concrete, umane și indexabile.
+6. Nu folosi cuvântul „miza”. Folosește natural: partea importantă, punctul sensibil, problema de fond, întrebarea reală, ce contează de fapt.
+7. Include exact 2 linkuri externe relevante, ancorate pe grupuri de cuvinte cu sens, nu pe „aici” sau „sursa”.
+8. Include exact 2 linkuri interne Oficiul, natural, în formulări de tipul „Oficiul de Știri a scris despre...”, ancorate pe grupuri relevante.
+9. Include o secțiune „Pe scurt” de 1–2 fraze, nu tabel.
+10. Include pachet SEO complet: focus keyword fără diacritice, SEO title fără diacritice, slug, meta description max 155–160 caractere, excerpt, categorie, categorii secundare, max 4 taguri, H2/H3 finale, expresii SEO folosite.
+11. Include 2 poze legale numai din Wikimedia Commons, cu link pagină, link direct download dacă există, credit, licență, filename recomandat, alt text, title, caption și descriere. Caption format: „[descriere imagine]. / Sursa foto: [sursa]”.
+12. Scrie șapou principal și șapou rescris pentru poza de după șapou.
+13. La final, dă checklist scurt: anti-duplicate, surse, linkuri, SEO, poze.
+
+FORMAT CERUT:
+A) Anti-duplicate check
+B) Articol gata de copy-paste
+C) Verificare expresii SEO naturale
+D) Pachet SEO complet
+E) Poze legale Wikimedia
+F) Checklist final
+
+Important: nu produce text generic. Găsește unghiul real al subiectului pentru cititorii din România: ce s-a întâmplat, cine e afectat, ce se schimbă concret, ce trebuie urmărit și ce înseamnă pentru cititor.`;
 }
 
 

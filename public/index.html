@@ -56,25 +56,9 @@
 
         <input id="searchInput" type="hidden" value="" />
 
-        <label class="field">
-          <span>Interes</span>
-          <select id="interestFilter">
-            <option value="toate">Toate</option>
-            <option value="Politică">Politică</option>
-            <option value="Economie/Bani">Economie/Bani</option>
-            <option value="Social">Social</option>
-            <option value="Vedete/Showbiz">Vedete/Showbiz</option>
-            <option value="Sport">Sport</option>
-            <option value="Sănătate">Sănătate</option>
-            <option value="Educație">Educație</option>
-            <option value="Justiție">Justiție</option>
-            <option value="Externe relevante pentru români">Externe pentru români</option>
-            <option value="Horoscop/Lifestyle">Horoscop/Lifestyle</option>
-            <option value="Auto">Auto</option>
-            <option value="Travel">Travel</option>
-            <option value="Tehnologie">Tehnologie</option>
-          </select>
-        </label>
+        <select id="interestFilter" hidden>
+          <option value="toate" selected>Toate</option>
+        </select>
 
         <label class="field">
           <span>Intensitate</span>
@@ -101,14 +85,11 @@
           </select>
         </label>
 
-        <label class="field">
-          <span>Status Oficiul de Știri</span>
-          <select id="coverageFilter">
-            <option value="neacoperit">Doar neacoperite</option>
-            <option value="posibil-similar">Posibil similare</option>
-            <option value="toate">Toate eligibile</option>
-          </select>
-        </label>
+        <select id="coverageFilter" hidden>
+          <option value="neacoperit" selected>Doar neacoperite</option>
+          <option value="posibil-similar">Posibil similare</option>
+          <option value="toate">Toate eligibile</option>
+        </select>
 
         <select id="sortFilter" hidden>
           <option value="recency" selected>Cele mai noi</option>
@@ -119,15 +100,6 @@
 
       </section>
 
-      <section class="panel-card connector-card">
-        <h2>Ce scanează</h2>
-        <ul>
-          <li>RSS-uri directe de publicații românești + interval ales: 0–60 min până la 0–24 h</li>
-          <li>subiectele apar automat chiar și când există o singură sursă</li>
-          <li>oficiuldestiri.ro prin WP REST public rapid; search intern/sitemap doar opțional</li>
-          <li>auto-refresh la 3 minute după ce apeși Refresh live, inclusiv când ești în alt tab</li>
-        </ul>
-      </section>
     </aside>
 
     <section class="content-area" aria-label="Subiecte recomandate">
@@ -155,7 +127,7 @@
       </section>
 
       <section class="notice-card" id="sourceNotice">
-        <strong>PRO:</strong> scorul de interes este intern. Folosește butoanele de pe card pentru Brief, SEO, contacte, Draft, linkuri și poze.
+        <strong>Radar:</strong> alege subiectul cu potențial și folosește „Copiaza pentru AI” ca să trimiți aici sursele și instrucțiunile editoriale.
       </section>
 
       <div class="toolbar-row">
