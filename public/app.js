@@ -569,14 +569,7 @@ function showBrief(topic) {
 function showTitles(topic) {
   const focusKeyword = buildFocusKeyword(topic);
   const base = topic.title.replace(/[.!?]+$/, '');
-  const titles = [
-    topic.seoTitle || buildSeoHeadline(topic),
-    `${base}: ce se știe și ce urmează`,
-    `${base}. De ce contează pentru România`,
-    `Ce se schimbă după ${lowerFirst(base)}`,
-    `${base}: cine este afectat și ce trebuie verificat`,
-    `Miza din spatele subiectului ${focusKeyword}`
-  ];
+  const titles = buildSeoTitleIdeas(topic);
 
   el.dialogTitle.textContent = 'SEO complet';
   el.dialogBody.innerHTML = `
@@ -594,12 +587,8 @@ function showTitles(topic) {
     <p><strong>Taguri max 4:</strong> ${escapeHtml(buildTags(topic).join(', '))}</p>
 
     <h3>H2/H3 recomandate</h3>
-    <ul>
-      <li>Ce s-a întâmplat în cazul ${escapeHtml(focusKeyword)}</li>
-      <li>De ce contează pentru români</li>
-      <li>Pe scurt: datele care trebuie verificate</li>
-      <li>Ce urmează</li>
-    </ul>
+    <p class="muted">Intertitluri finale, concrete și indexabile, generate pe subiect, nu șabloane generice.</p>
+    <ul>${buildSeoH2Recommendations(topic).map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul>
 
     <h3>Imagini</h3>
     <p>Caută imagine legală pe sursă oficială / instituție / Wikimedia. Nu folosi imagine cu licență neclară fără aprobare.</p>
@@ -660,16 +649,33 @@ function showCopyPasteDraft(topic) {
 function showLinksAndImages(topic) {
   const externals = chooseExternalLinks(topic);
   const internal = chooseInternalLinks(topic);
-  const imageQuery = encodeURIComponent(`${topic.title} ${topic.category || ''} Wikimedia Commons site:commons.wikimedia.org OR site:gov.ro OR site:europa.eu`);
+  const cleanQuery = buildCleanSearchQuery(topic);
+  const focusKeyword = buildFocusKeyword(topic);
+  const officialQuery = encodeURIComponent(`${cleanQuery} site:gov.ro OR site:mai.gov.ro OR site:gov.ro OR site:camera-deputatilor.ro OR site:senat.ro OR site:presidency.ro OR site:anpc.ro OR site:anm.ro`);
+  const googleImagesQuery = encodeURIComponent(`${cleanQuery} Romania`);
+  const commonsQuery = encodeURIComponent(`${cleanQuery} Romania`);
+  const widePhotoQuery = encodeURIComponent(`${cleanQuery} foto imagine Romania`);
+  const oficiuSearch1 = encodeURIComponent(`site:oficiuldestiri.ro ${focusKeyword}`);
+  const oficiuSearch2 = encodeURIComponent(`site:oficiuldestiri.ro ${buildInternalContextQuery(topic)}`);
+  const internalHtml = internal.length
+    ? internal.map((l) => `<li><a href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.anchor)}</a> — ${escapeHtml(l.url)}</li>`).join('')
+    : `<li><a href="https://www.google.com/search?q=${oficiuSearch1}" target="_blank" rel="noopener noreferrer">Caută pe Oficiul de Știri după focus keyword: ${escapeHtml(focusKeyword)}</a></li>
+       <li><a href="https://www.google.com/search?q=${oficiuSearch2}" target="_blank" rel="noopener noreferrer">Caută pe Oficiul de Știri după contextul subiectului</a></li>`;
+
   el.dialogTitle.textContent = 'Linkuri + poze legale';
   el.dialogBody.innerHTML = `
     <h3>2 linkuri externe recomandate</h3>
     <ol>${externals.map((l) => `<li><a href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.anchor)}</a> — ${escapeHtml(l.url)}</li>`).join('') || '<li>Nu sunt suficiente surse externe în card. Verifică manual surse oficiale.</li>'}</ol>
-    <h3>2 linkuri interne Oficiul de Știri recomandate</h3>
-    <ol>${internal.map((l) => `<li><a href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.anchor)}</a> — ${escapeHtml(l.url)}</li>`).join('') || '<li>Nu am găsit două linkuri interne clare. Caută manual pe Oficiul de Știri.</li>'}</ol>
+    <h3>2 linkuri interne Oficiul de Știri</h3>
+    <ol>${internalHtml}</ol>
     <h3>Poze legale</h3>
-    <p>Caută două imagini: main + după șapou. Preferă Wikimedia Commons, instituții oficiale, Guvern, Parlament, UE, NATO, ministere, cluburi, comunicate oficiale.</p>
-    <p><a class="btn" href="https://www.google.com/search?q=${imageQuery}" target="_blank" rel="noopener noreferrer">Caută poze legale</a></p>
+    <p>Caută două imagini: main + după șapou. Am scurtat automat căutarea la: <strong>${escapeHtml(cleanQuery)}</strong>, ca să nu mai trimită în Google titlul întreg și să nu mai dea pagină fără rezultate.</p>
+    <p class="link-button-row">
+      <a class="btn" href="https://www.google.com/search?tbm=isch&q=${googleImagesQuery}" target="_blank" rel="noopener noreferrer">Google Imagini</a>
+      <a class="btn" href="https://commons.wikimedia.org/w/index.php?search=${commonsQuery}&title=Special:MediaSearch&type=image" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a>
+      <a class="btn" href="https://www.google.com/search?q=${officialQuery}" target="_blank" rel="noopener noreferrer">Surse oficiale</a>
+      <a class="btn" href="https://www.google.com/search?tbm=isch&q=${widePhotoQuery}" target="_blank" rel="noopener noreferrer">Căutare largă poze</a>
+    </p>
     <h4>Checklist imagine</h4>
     <ul>
       <li>pagina exactă;</li>
@@ -681,6 +687,31 @@ function showLinksAndImages(topic) {
     </ul>
   `;
   openDialog();
+}
+
+function buildCleanSearchQuery(topic) {
+  const title = cleanupForArticle(topic.title || '');
+  const words = title
+    .replace(/[|:;,.!?„”"'()\[\]]/g, ' ')
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter(Boolean)
+    .filter((w) => w.length > 2)
+    .filter((w) => !/^(breaking|ultima|ora|video|foto|live|update|exclusiv|revista|presei|cum|care|este|sunt|fost|după|dupa|până|pana|pentru|despre|dintre|dintre|dintr|prin|mai|mult|multe|unui|unei|ale|sau|iar|dar|când|cand|unde|lista|arată|arata)$/i.test(w));
+  const picked = [];
+  for (const w of words) {
+    if (!picked.some((x) => sameNormalized(x, w))) picked.push(w);
+    if (picked.length >= 7) break;
+  }
+  const q = picked.join(' ').trim();
+  return q || buildFocusKeyword(topic) || title.slice(0, 80);
+}
+
+function buildInternalContextQuery(topic) {
+  const category = topic.category || '';
+  const interest = topic.interest || '';
+  const clean = buildCleanSearchQuery(topic);
+  return `${clean} ${category} ${interest}`.trim();
 }
 
 function buildGptArticlePrompt(topic) {
@@ -1201,10 +1232,161 @@ function inferNextStep(topic) {
 }
 
 function buildSeoHeadline(topic) {
-  const base = (topic.title || '').replace(/[.!?]+$/, '');
-  if ((topic.interest || '') === 'Economie/Bani') return `${base}. Ce se schimbă în bani pentru români`;
-  if ((topic.interest || '') === 'Politică') return `${base}. Miza politică și ce urmează`;
-  return `${base}. De ce contează pentru români`;
+  const base = shortenTitleForSeo((topic.title || '').replace(/[.!?]+$/, ''));
+  const text = normalize(`${topic.title || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')}`);
+  if (/plafon|alimente|adaos|pret|preturi|facturi|tva|taxe|impozit|anaf|pensii|salarii/.test(text)) return `${base}. Ce se schimbă pentru români`;
+  if (/guvern|parlament|pnl|psd|usr|aur|premier|ministru|alegeri|nicusor|simion|grindeanu|tomac/.test(text)) return `${base}. Efectul politic și ce urmează`;
+  if (/ucraina|rusia|nato|ue|moldova|sua|iran|bulgaria/.test(text)) return `${base}. De ce contează pentru România`;
+  if (/meteo|anm|cod galben|cod portocaliu|furtuni|vreme/.test(text)) return `${base}. Zonele vizate și intervalul anunțat`;
+  if (/injunghiat|crima|omor|accident|incendiu|politia|isu/.test(text)) return `${base}. Ce au transmis autoritățile`;
+  return `${base}. Ce se știe și ce trebuie verificat`;
+}
+
+function buildSeoTitleIdeas(topic) {
+  const base = shortenTitleForSeo((topic.seoTitle || topic.title || '').replace(/[.!?]+$/, ''));
+  const text = normalize(`${topic.title || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')}`);
+  const focus = buildFocusKeyword(topic);
+  let titles;
+
+  if (/plafon|alimente|adaos|pret|preturi|facturi|tva|taxe|impozit|anaf|pensii|salarii/.test(text)) {
+    titles = [
+      `${base}. Ce se schimbă pentru români`,
+      `${base}: lista, termenul și efectul la raft`,
+      `Prețuri plafonate la alimente: ce produse sunt vizate și până când se aplică măsura`,
+      `Adaos comercial plafonat până la finalul anului. Ce trebuie să știe cumpărătorii`,
+      `${base}: cine controlează măsura și ce riscă magazinele`
+    ];
+  } else if (/guvern|parlament|pnl|psd|usr|aur|premier|ministru|alegeri|nicusor|simion|grindeanu|tomac|kovesi|epplo|pnrr/.test(text)) {
+    titles = [
+      `${base}. Efectul politic și ce urmează`,
+      `${base}: cine este vizat și ce schimbă declarația`,
+      `${base}. Contextul din spatele conflictului politic`,
+      `${base}: reacții, instituții și următorul pas`,
+      `${base}. Ce trebuie verificat înainte de publicare`
+    ];
+  } else if (/ucraina|rusia|nato|ue|moldova|sua|iran|bulgaria|italia/.test(text)) {
+    titles = [
+      `${base}. De ce contează pentru România`,
+      `${base}: legătura cu UE, NATO și regiunea`,
+      `${base}. Ce se schimbă în relațiile externe`,
+      `${base}: ce înseamnă decizia pentru flancul estic`,
+      `${base}. Reacțiile și documentele care trebuie urmărite`
+    ];
+  } else if (/meteo|anm|cod galben|cod portocaliu|furtuni|vreme|canicula|ninsoare/.test(text)) {
+    titles = [
+      `${base}. Zonele vizate și intervalul anunțat`,
+      `${base}: județele afectate și riscurile pentru populație`,
+      `Cod meteo în România: unde sunt așteptate furtuni și până când este valabilă avertizarea`,
+      `${base}. Ce trebuie să știe șoferii și locuitorii din zonele afectate`,
+      `${base}: harta avertizărilor și recomandările autorităților`
+    ];
+  } else if (/notar|parchet|procuror|judecat|instanta|dosar|ancheta|condamn/.test(text)) {
+    titles = [
+      `${base}. Prejudiciul anunțat și stadiul dosarului`,
+      `${base}: ce spun procurorii și ce trebuie verificat`,
+      `${base}. Acuzațiile, suma și prezumția de nevinovăție`,
+      `${base}: ce urmează în instanță`,
+      `${base}. De ce cazul contează pentru contribuabili`
+    ];
+  } else if (/injunghiat|crima|omor|amenintat|violenta|politia|isu|accident|incendiu/.test(text)) {
+    titles = [
+      `${base}. Ce au transmis autoritățile`,
+      `${base}: victima, suspectul și primele date din anchetă`,
+      `${base}. Ce se știe despre incident și ce trebuie confirmat`,
+      `${base}: ancheta și măsurile anunțate`,
+      `${base}. Întrebările la care trebuie să răspundă autoritățile`
+    ];
+  } else {
+    titles = [
+      `${base}. Ce se știe și ce trebuie verificat`,
+      `${base}: contextul și următorul pas`,
+      `${base}. Cine este afectat și ce informații lipsesc`,
+      `${base}: datele confirmate până acum`,
+      `${base}. Ce trebuie urmărit în următoarele ore`
+    ];
+  }
+
+  titles.push(`${sentenceCase(focus)}: expresia pe care se poate indexa articolul`);
+  return Array.from(new Set(titles.map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean))).slice(0, 6);
+}
+
+function buildSeoH2Recommendations(topic) {
+  const base = shortenTitleForSeo((topic.title || topic.seoTitle || '').replace(/[.!?]+$/, ''));
+  const text = normalize(`${topic.title || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')}`);
+  const h2 = [];
+
+  if (/plafon|alimente|adaos|pret|preturi|facturi|tva|taxe|impozit|anaf|pensii|salarii/.test(text)) {
+    h2.push(
+      `Alimentele cu adaos comercial plafonat: ce a decis Parlamentul`,
+      `Lista produselor cu prețuri plafonate și termenul până la care se aplică măsura`,
+      `Cum se vede plafonarea adaosului comercial la raft și în bugetul familiei`,
+      `Ce magazine sunt vizate și cine poate verifica respectarea regulilor`,
+      `Ce document oficial trebuie citat înainte de publicare`
+    );
+  } else if (/grindeanu|tomac|pnl|psd|usr|aur|guvern|parlament|premier|ministru|alegeri|nicusor|simion|kovesi|epplo|pnrr/.test(text)) {
+    h2.push(
+      `${base}: declarația care a declanșat disputa politică`,
+      `Negocierile pentru Guvern și presiunea pusă pe partide`,
+      `Cine este vizat de mesaj și ce poate urma în coaliție`,
+      `Reacțiile care trebuie urmărite în următoarele ore`,
+      `Ce documente sau poziții oficiale trebuie verificate`
+    );
+  } else if (/ucraina|rusia|nato|ue|moldova|sua|iran|bulgaria|italia/.test(text)) {
+    h2.push(
+      `${base}: decizia care schimbă discuția externă`,
+      `Legătura cu România, UE și securitatea din regiune`,
+      `Ce spun sursele internaționale și ce rămâne de confirmat`,
+      `De ce contează subiectul pentru flancul estic`,
+      `Ce reacții trebuie urmărite la Bruxelles, NATO sau în capitalele implicate`
+    );
+  } else if (/meteo|anm|cod galben|cod portocaliu|furtuni|vreme|canicula|ninsoare/.test(text)) {
+    h2.push(
+      `Cod meteo în România: zonele vizate de avertizare`,
+      `Intervalul în care sunt așteptate ploi, vijelii sau grindină`,
+      `Ce trebuie să știe șoferii și locuitorii din județele afectate`,
+      `Recomandările autorităților în timpul avertizării ANM`,
+      `Când ar putea fi actualizată harta meteo`
+    );
+  } else if (/notar|parchet|procuror|judecat|instanta|dosar|ancheta|condamn/.test(text)) {
+    h2.push(
+      `${base}: acuzațiile și prejudiciul anunțat de procurori`,
+      `Ce impozite ar fi trebuit plătite la bugetul de stat`,
+      `Stadiul dosarului și ce înseamnă trimiterea în judecată`,
+      `De ce cazul contează pentru contribuabili și tranzacții imobiliare`,
+      `Ce trebuie verificat în comunicatul Parchetului sau al instanței`
+    );
+  } else if (/injunghiat|crima|omor|amenintat|violenta|politia|isu|accident|incendiu/.test(text)) {
+    h2.push(
+      `${base}: primele informații despre victimă și suspect`,
+      `Ce spun autoritățile despre atac și amenințările anterioare`,
+      `Ancheta Poliției și măsurile luate după incident`,
+      `De ce cazul ridică întrebări despre protecția victimelor`,
+      `Ce detalii trebuie confirmate înainte de publicare`
+    );
+  } else {
+    h2.push(
+      `${base}: informațiile confirmate până acum`,
+      `Contextul care lipsește din primele relatări`,
+      `Cine este afectat de această decizie sau situație`,
+      `Ce trebuie verificat în sursele oficiale`,
+      `Ce se poate întâmpla în următoarele ore`
+    );
+  }
+
+  return Array.from(new Set(h2.map((item) => item.replace(/\s+/g, ' ').trim()).filter(Boolean))).slice(0, 6);
+}
+
+function shortenTitleForSeo(text) {
+  const clean = cleanupForArticle(text || '').replace(/\s+/g, ' ').trim();
+  if (clean.length <= 95) return clean;
+  const cut = clean.slice(0, 95).replace(/[,;:\-–—]?\s+\S*$/, '');
+  return cut || clean.slice(0, 95);
+}
+
+function sentenceCase(text) {
+  const clean = (text || '').trim();
+  if (!clean) return '';
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
 }
 
 function buildFocusKeyword(topic) {

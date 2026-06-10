@@ -1505,22 +1505,156 @@ function buildContactEmailSubject(topic, contact) {
 
 function buildContactEmailBody(topic, contact) {
   const questions = buildContactQuestions(topic, contact);
-  const roleLine = contact.role ? `Vă contactez în legătură cu aria dumneavoastră de competență: ${contact.role}.` : 'Vă contactez pentru o clarificare legată de un subiect de actualitate.';
-  const competenceLine = contact.competence ? `Am considerat relevantă solicitarea deoarece ${contact.competence}` : '';
-  return [`Bună ziua,`, ``, `Sunt (numele tău), redactor la Oficiul de Știri.`, roleLine, ``, `Pregătesc un material despre: „${topic.title}”. ${competenceLine}`, `Pentru acuratețe, aș avea nevoie de câteva clarificări:`, ``, ...questions.map((q, i) => `${i + 1}. ${q}`), ``, `Dacă este posibil, vă rog să îmi transmiteți un răspuns în scris sau să îmi indicați persoana competentă pentru acest subiect.`, ``, `Menționez că nu voi atribui declarații care nu sunt confirmate explicit.`, ``, `Mulțumesc,`, `(numele tău)`, `Oficiul de Știri`].join('\n');
+  const isExtractedSource = contact.type === 'extras public';
+  const sourceDomain = domainFromUrl(contact.url || '');
+  const roleLine = isExtractedSource
+    ? `Vă contactez în legătură cu informațiile publicate pe ${sourceDomain}. Adresa apare public pe pagina sursei, dar vă rog să îmi indicați persoana potrivită dacă solicitarea trebuie redirecționată.`
+    : (contact.role ? `Vă contactez în legătură cu aria dumneavoastră de competență: ${contact.role}.` : 'Vă contactez pentru o clarificare legată de un subiect de actualitate.');
+  const competenceLine = isExtractedSource
+    ? `Solicitarea este relevantă deoarece articolul detectat de radar conține informații care trebuie atribuite corect și, unde este posibil, verificate din sursa primară.`
+    : (contact.competence ? `Am considerat relevantă solicitarea deoarece ${contact.competence}` : '');
+  return [`Bună ziua,`, ``, `Sunt (numele tău), redactor la Oficiul de Știri.`, roleLine, ``, `Pregătesc un material despre: „${topic.title}”. ${competenceLine}`, `Pentru acuratețe, aș avea nevoie de câteva clarificări punctuale:`, ``, ...questions.map((q, i) => `${i + 1}. ${q}`), ``, `Dacă este posibil, vă rog să îmi transmiteți un răspuns în scris sau să îmi indicați persoana competentă pentru acest subiect.`, ``, `Menționez că nu voi atribui declarații care nu sunt confirmate explicit.`, ``, `Mulțumesc,`, `(numele tău)`, `Oficiul de Știri`].join('\n');
 }
 
 function buildContactQuestions(topic, contact) {
-  const text = normalize(`${topic.title || ''} ${topic.interest || ''} ${(topic.entities || []).join(' ')}`);
+  const text = normalize(`${topic.title || ''} ${topic.interest || ''} ${(topic.entities || []).join(' ')} ${(topic.keywords || []).join(' ')}`);
+  const title = topic.title || 'subiectul menționat';
+  const domain = domainFromUrl(contact.url || '');
+  const sourceItem = (topic.sources || []).find((s) => normalize(domainFromUrl(s.url || '')) === normalize(domain)) || (topic.sources || [])[0] || {};
+  const sourceLine = cleanText(`${sourceItem.title || ''} ${sourceItem.description || ''}`).slice(0, 260);
+  const isExtractedSource = contact.type === 'extras public';
   const official = contact.type === 'oficial';
-  const political = /politic|guvern|parlament|deputat|senat|psd|pnl|usr|aur|udmr|motiune|lege|premier|presedint/.test(text) || contact.type === 'contact local';
-  const economy = /anaf|bnr|taxe|tva|facturi|energie|pret|salarii|pensii|dobanzi|curs|buget/.test(text);
-  const social = /accident|vreme|meteo|cod|trafic|sanatate|educatie|scoala|spital|politie|isu/.test(text);
-  if (economy) return [`Care este informația oficială confirmată în acest moment privind subiectul „${topic.title}”?`, 'Ce categorii de persoane, firme sau contribuabili sunt afectate direct?', 'Există un calendar, termen sau document oficial care trebuie consultat?', 'Care este impactul practic: costuri, plăți, rate, facturi, taxe sau obligații?', 'Ce ar trebui să verifice cititorii pentru a evita interpretări greșite?'];
-  if (political) return [`Care este poziția dumneavoastră/instituției privind subiectul „${topic.title}”?`, 'Există o decizie oficială sau este, deocamdată, doar o declarație politică?', 'Care este următorul pas concret: vot, negociere, ședință, document, comunicat?', 'Cine este afectat direct de această evoluție și în ce mod?', 'Ce elemente considerați că lipsesc din relatarea publică de până acum?'];
-  if (social) return [`Ce date sunt confirmate oficial în acest moment despre „${topic.title}”?`, 'Care sunt zonele, persoanele sau categoriile afectate?', 'Ce recomandări concrete există pentru public?', 'Există un interval, termen sau o evoluție estimată pentru următoarele ore?', 'Unde pot cititorii verifica informațiile oficiale actualizate?'];
-  if (official) return [`Ce informații puteți confirma oficial despre „${topic.title}”?`, 'Există un document, comunicat sau calendar oficial disponibil public?', 'Care este impactul concret pentru publicul din România?', 'Ce urmează în următoarele ore sau zile?', 'Există o persoană/instituție mai potrivită pentru clarificări suplimentare?'];
-  return [`Ce puteți confirma despre subiectul „${topic.title}”?`, 'Care este sursa primară a informației?', 'Ce detalii sunt încă neconfirmate?', 'Care este miza pentru publicul din România?', 'Ce evoluții ar trebui urmărite în următoarele ore?'];
+  const political = /politic|guvern|parlament|deputat|senat|camera deputatilor|psd|pnl|usr|aur|udmr|motiune|lege|premier|presedint|ministru|coalitie/.test(text) || contact.type === 'contact local';
+  const foodPrices = /aliment|adaos|plafon|pret|preturi|comercial|magazin|retailer|cosul|produs/.test(text);
+  const fiscalLegal = /notar|impozit|taxe|tva|anaf|parchet|procuror|judecat|evaziune|dosar|prejudiciu|contributii/.test(text);
+  const crimeIncident = /injunghiat|crima|omor|amenintat|violenta|agres|atac|victima|suspect|retinut|arest|politie|parchet/.test(text);
+  const weatherEmergency = /anm|meteo|vreme|cod galben|cod portocaliu|furtuna|ploi|canicula|isu|inundatii|vijelie/.test(text);
+  const education = /bac|evaluare|educatie|scoala|elev|profesor|examen|admitere/.test(text);
+  const health = /sanatate|spital|medic|pacient|boala|tratament|medicament/.test(text);
+  const externalSecurity = /rusia|ucraina|nato|ue|moldova|razboi|sancțiuni|sancțiune|aparare|armata|drona|marea neagra/.test(text);
+
+  if (isExtractedSource) {
+    if (foodPrices) return [
+      `În articolul publicat de ${domain}, informația despre prelungirea plafonării adaosului comercial se bazează pe votul final din Camera Deputaților, pe un proiect de lege sau pe un comunicat oficial?`,
+      'Care este lista completă a produselor vizate și există modificări față de lista aplicată până acum?',
+      'Data de aplicare este 31 decembrie 2026 sau există pași procedurali înainte de intrarea în vigoare?',
+      'În ce formă a fost menționat impactul pentru magazine, procesatori și cumpărători: prețuri, marje, amenzi sau controale?',
+      `Există un link către documentul oficial / actul normativ pe care s-a bazat relatarea ${domain}?`
+    ];
+    if (fiscalLegal) return [
+      `În relatarea ${domain}, datele despre dosar provin dintr-un comunicat al Parchetului, din rechizitoriu sau din informații Agerpres?`,
+      'Care este prejudiciul exact indicat oficial și ce tipuri de impozite/contribuții sunt menționate separat?',
+      'Persoana trimisă în judecată are o calitate oficială completă ce poate fi publicată sau trebuie păstrată anonimizarea?',
+      'Au fost dispuse măsuri asigurătorii, recuperări de prejudiciu sau alte măsuri judiciare menționate în documentele oficiale?',
+      'Există o precizare privind prezumția de nevinovăție sau stadiul exact al dosarului în instanță?'
+    ];
+    if (crimeIncident) return [
+      `În articolul publicat de ${domain}, informațiile vin de la Poliție, Parchet, instanță sau de la surse locale?`,
+      'Care este starea victimei/victimelor și ce date sunt confirmate oficial, nu doar relatate de martori?',
+      'Suspectul a fost reținut, arestat preventiv sau este cercetat într-o altă măsură procesuală?',
+      'Există antecedente confirmate: plângeri, ordin de protecție, amenințări anterioare sau sesizări la Poliție?',
+      'Ce detalii trebuie evitate pentru a nu expune victima sau familia și pentru a respecta ancheta?'
+    ];
+    if (weatherEmergency) return [
+      `În articolul ${domain}, avertizarea meteo este preluată de la ANM/ISU sau dintr-o actualizare locală?`,
+      'Care sunt intervalul exact, județele vizate și fenomenele prognozate?',
+      'Există diferențe între codurile meteo: galben, portocaliu sau roșu, pe zone ori ore?',
+      'Ce recomandări concrete pentru populație au fost transmise oficial?',
+      'Unde poate fi verificată actualizarea în timp real: ANM, ISU, CNAIR, Poliție sau autorități locale?'
+    ];
+    if (education) return [
+      `În materialul ${domain}, informația vine de la Ministerul Educației, inspectorate sau centre de examen?`,
+      'Care sunt datele exacte: calendar, subiecte, barem, rezultate sau procedură?',
+      'Ce categorie de elevi/candidați este vizată direct?',
+      'Există document oficial, metodologie sau link de descărcare care poate fi citat?',
+      'Ce termen imediat trebuie urmărit de părinți și elevi?'
+    ];
+    if (health) return [
+      `În articolul ${domain}, informația medicală este confirmată de Ministerul Sănătății, CNAS, DSP sau spital?`,
+      'Ce categorie de pacienți este vizată direct?',
+      'Există un calendar, o procedură sau o condiție de acces pentru serviciul/anunțul relatat?',
+      'Ce trebuie să facă concret cititorii: programare, trimitere, documente, verificare la medicul de familie?',
+      'Există riscul unei interpretări greșite care trebuie explicată separat în articol?'
+    ];
+    if (externalSecurity) return [
+      `În materialul ${domain}, informația se bazează pe declarații oficiale, agenții internaționale sau documente guvernamentale?`,
+      'Care este efectul concret pentru România sau pentru regiunea Mării Negre?',
+      'Există o poziție oficială a României, UE sau NATO citată în sursa inițială?',
+      'Ce elemente sunt confirmate și ce rămâne interpretare politică sau analiză?',
+      'Ce evoluție trebuie urmărită în orele următoare: reacții, vot, sancțiuni, măsuri militare sau diplomatice?'
+    ];
+    return [
+      `În articolul publicat de ${domain}, care este sursa primară a informației: comunicat, document oficial, agenție de presă sau declarație directă?`,
+      sourceLine ? `Textul sursei spune: „${sourceLine}”. Ce detaliu esențial trebuie verificat înainte de preluare?` : 'Ce detaliu esențial trebuie verificat înainte de preluare?',
+      'Există o actualizare după publicarea articolului inițial?',
+      'Ce informație nu ar trebui prezentată ca certitudine fără confirmare suplimentară?',
+      'Puteți indica documentul, instituția sau persoana care poate confirma oficial subiectul?'
+    ];
+  }
+
+  if (foodPrices) return [
+    'Care este actul oficial prin care se prelungește plafonarea adaosului comercial și care este stadiul lui procedural?',
+    'Ce produse intră exact pe lista alimentelor de bază și ce produse au fost scoase sau adăugate?',
+    'Până la ce dată se aplică măsura și cine trebuie să o respecte: retaileri, procesatori, distribuitori?',
+    'Ce instituție controlează aplicarea plafonării și ce sancțiuni sunt prevăzute?',
+    'Ce efect practic estimați pentru cumpărători în următoarele luni?'
+  ];
+  if (fiscalLegal) return [
+    `Ce date oficiale puteți confirma despre dosarul menționat în subiectul „${title}”?`,
+    'Care este prejudiciul indicat în documentele oficiale și ce obligații fiscale sunt vizate?',
+    'În ce stadiu se află cauza: urmărire penală, trimitere în judecată, cameră preliminară sau judecată pe fond?',
+    'Au fost dispuse măsuri pentru recuperarea prejudiciului?',
+    'Există precizări care trebuie menționate pentru respectarea prezumției de nevinovăție?'
+  ];
+  if (crimeIncident) return [
+    `Ce informații sunt confirmate oficial despre incidentul din „${title}”?`,
+    'Care este starea victimei și ce măsuri au fost luate față de suspect?',
+    'A existat anterior o sesizare, amenințare, ordin de protecție sau alt element confirmat de autorități?',
+    'Ce încadrare juridică este avută în vedere în acest moment?',
+    'Ce informații nu pot fi publicate acum pentru a nu afecta ancheta sau persoanele vulnerabile?'
+  ];
+  if (political) return [
+    `Care este poziția oficială privind subiectul „${title}”?`,
+    'Există o decizie adoptată sau este vorba doar despre o intenție/anunț politic?',
+    'Care este următorul pas concret: vot, ședință, consultare, promulgare, publicare în Monitorul Oficial?',
+    'Ce categorii de cetățeni sau instituții sunt afectate direct?',
+    'Ce document public poate fi citat pentru verificarea informației?'
+  ];
+  if (weatherEmergency) return [
+    `Ce date sunt confirmate oficial despre avertizarea/incidentul „${title}”?`,
+    'Care sunt zonele și intervalele exacte vizate?',
+    'Ce recomandări concrete transmiteți populației?',
+    'Există riscul extinderii sau actualizării avertizării în următoarele ore?',
+    'Unde pot cititorii verifica actualizările oficiale?'
+  ];
+  if (education) return [
+    `Ce informații oficiale puteți confirma despre „${title}”?`,
+    'Care este calendarul exact și ce document trebuie consultat?',
+    'Ce categorie de elevi, părinți sau profesori este afectată direct?',
+    'Există link oficial pentru subiecte, rezultate, bareme sau metodologie?',
+    'Ce termen imediat trebuie urmărit?'
+  ];
+  if (health) return [
+    `Ce informații oficiale puteți confirma despre „${title}”?`,
+    'Ce pacienți sau servicii medicale sunt vizate?',
+    'Care este procedura concretă pentru public?',
+    'Există document, comunicat sau listă oficială care poate fi citată?',
+    'Ce recomandare practică trebuie transmisă cititorilor?'
+  ];
+  if (official) return [
+    `Ce informații puteți confirma oficial despre „${title}”?`,
+    'Există un document, comunicat sau calendar oficial disponibil public?',
+    'Care este efectul concret pentru publicul din România?',
+    'Ce urmează în următoarele ore sau zile?',
+    'Există o persoană/instituție mai potrivită pentru clarificări suplimentare?'
+  ];
+  return [
+    `Ce puteți confirma despre subiectul „${title}”?`,
+    'Care este sursa primară a informației?',
+    'Ce detalii sunt încă neconfirmate?',
+    'Ce contează concret pentru publicul din România?',
+    'Ce evoluții ar trebui urmărite în următoarele ore?'
+  ];
 }
 
 function domainFromUrl(url) {
