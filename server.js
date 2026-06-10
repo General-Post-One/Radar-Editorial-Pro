@@ -1759,3 +1759,200 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+
+/* === FIX FINAL CONTACTE: contacte și întrebări pe instituție/subiect === */
+function contactTopicText(topic) {
+  return normalize(`${topic.title || ''} ${topic.summary || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')} ${(topic.sources || []).map((s) => `${s.name || ''} ${s.title || ''} ${s.description || ''} ${s.url || ''}`).join(' ')}`);
+}
+function detectContactKind(topic) {
+  const text = contactTopicText(topic);
+  if (/atentionare.*calatorie|calatorie.*mae|greva.*franta|franta.*greva|trafic feroviar|transport feroviar|sncf|trenuri.*franta/.test(text)) return 'travel_alert';
+  if (/date personale|bresa de securitate|bre[sș]a de securitate|expuse din greseala|messi.*cm 2026/.test(text)) return 'data_privacy';
+  if (/ana maria branza|scrima|valori olimpice|sportivi olimpici|olimpici.*scoli|scoli.*olimpici/.test(text)) return 'edu_sport_values';
+  if (/taraclia|balti|b[aă]l[tț]i|predare.*rusa|limba romana.*republicii moldova|republica moldova.*limba romana/.test(text)) return 'moldova_education';
+  if (/memorandum.*camera.*comert|camera de comert.*estonie|camera de comert.*bucuresti|industrie.*estonie/.test(text)) return 'business_memo';
+  if (/anofm|locuri de munca|joburi|angajari|somaj|piata muncii|ocuparea fortei de munca/.test(text)) return 'jobs';
+  if (/agricover|fermieri|agricol|agricultura|credite agricole|indatorati/.test(text)) return 'agri';
+  if (/robor|banci|banca|bnr|consiliul concurentei|concurenta|credit|rate/.test(text)) return 'banking';
+  if (/alimente|adaos|plafon|preturi|retail|magazine/.test(text)) return 'food_prices';
+  if (/notar|impozit|prejudiciu|parchet|judecat|evaziune|dosar|rar|registrul auto|fals intelectual/.test(text)) return 'legal_tax';
+  if (/jupiter|documente false|refugiati|bani publici|cetateni ucraineni/.test(text)) return 'fraud_public_money';
+  if (/cfr cluj|fcsb|rapid|dinamo|craiova|fotbal|cantonament|transfer|meci|superliga/.test(text)) return 'sport';
+  if (/meteo|anm|cod galben|cod portocaliu|furtuni|ploi|vreme/.test(text)) return 'weather';
+  if (/bac|evaluare|educatie|scoala|elev|profesor|examen|admitere/.test(text)) return 'education';
+  if (/sanatate|spital|medic|pacient|medicament|cnas/.test(text)) return 'health';
+  if (/injunghiat|crima|omor|violenta|accident|incendiu|politie|victima|suspect|retinut/.test(text)) return 'incident';
+  if (/tomac|guvern|premier|ministr|coalitie|parlament|pnl|psd|usr|aur|presedint|nicusor|grindeanu|motiune|alegeri/.test(text)) return 'politics';
+  if (/ucraina|rusia|nato|patriot|marea neagra|moldova|ue|bruxelles|razboi|rachete|aparare/.test(text)) return 'external';
+  return 'general';
+}
+
+function inferOfficialContactTargets(topic) {
+  const text = contactTopicText(topic);
+  const kind = detectContactKind(topic);
+  const contacts = [];
+  const add = (name, role, url, reason, competence, email = '', phone = '') => contacts.push({ type: 'oficial', name, role, url, reason, competence, email, phone, confidence: 80 });
+  if (kind === 'travel_alert') {
+    add('Ministerul Afacerilor Externe', 'Comunicare publică / atenționări de călătorie', 'https://www.mae.ro/contact', 'Atenționare de călătorie pentru români.', 'poate confirma avertizarea, intervalul, zonele afectate și recomandările pentru călători.');
+    return contacts;
+  }
+  if (kind === 'business_memo') {
+    add('Camera de Comerț și Industrie a Municipiului București', 'Comunicare publică / relații instituționale', 'https://ccib.ro/contact/', 'Memorandum economic semnat cu o cameră de comerț externă.', 'poate confirma documentul semnat, domeniile de colaborare și efectele pentru firme.');
+    add('Camera de Comerț și Industrie a României', 'Comunicare publică', 'https://ccir.ro/contact/', 'Context instituțional pentru camerele de comerț.', 'poate redirecționa solicitarea către structura competentă dacă documentul ține de o cameră locală.');
+    return contacts;
+  }
+  if (kind === 'data_privacy') {
+    add('Autoritatea Națională de Supraveghere a Prelucrării Datelor cu Caracter Personal', 'Comunicare publică', 'https://www.dataprotection.ro/', 'Subiect despre expunerea datelor personale.', 'poate explica regulile generale privind breșele de securitate și notificarea persoanelor afectate.');
+  }
+  if (kind === 'edu_sport_values' || kind === 'education' || kind === 'moldova_education') add('Ministerul Educației', 'Biroul de presă', 'https://www.edu.ro/contact', 'Subiect de educație.', 'poate confirma programul, instituțiile partenere, calendarul și categoriile vizate.');
+  if (kind === 'moldova_education' || kind === 'external') add('Ministerul Afacerilor Externe', 'Comunicare publică', 'https://www.mae.ro/contact', 'Subiect extern relevant pentru România.', 'poate confirma contextul diplomatic și legătura cu Republica Moldova sau vecinătatea României.');
+  if (kind === 'jobs') add('ANOFM', 'Comunicare publică', 'https://www.anofm.ro/', 'Subiect despre locuri de muncă.', 'poate confirma numărul de posturi, domeniile, județele și actualizarea ofertelor.');
+  if (kind === 'agri') add('Ministerul Agriculturii', 'Comunicare publică', 'https://www.madr.ro/contact.html', 'Subiect despre fermieri și finanțarea agriculturii.', 'poate confirma date despre programe, finanțare, credite și efectul asupra sectorului agricol.');
+  if (kind === 'banking') {
+    add('Consiliul Concurenței', 'Comunicare publică', 'https://www.consiliulconcurentei.ro/contact/', 'Subiect despre concurență și bănci.', 'poate confirma stadiul procedurii, instituțiile vizate și documentele publice.');
+    add('BNR', 'Comunicare publică', 'https://www.bnr.ro/Contact-16.aspx', 'Context financiar și bancar.', 'poate oferi date publice despre dobânzi, indicatori și mecanisme bancare, în limita atribuțiilor.');
+  }
+  if (kind === 'food_prices') add('Ministerul Agriculturii', 'Comunicare publică', 'https://www.madr.ro/contact.html', 'Subiect despre alimente și adaos comercial.', 'poate confirma lista produselor, termenul și instituțiile responsabile.');
+  if (kind === 'legal_tax' || kind === 'fraud_public_money') add('Parchetul / instanța competentă', 'Comunicare publică', '', 'Subiect judiciar.', 'poate confirma stadiul dosarului, acuzațiile comunicate public și eventualele măsuri dispuse.');
+  if (kind === 'weather') add('Administrația Națională de Meteorologie', 'Relații publice / prognoză', 'https://www.meteoromania.ro/', 'Subiect meteo cu impact public.', 'poate confirma avertizările, intervalele și zonele vizate.');
+  if (kind === 'incident') add('Poliția Română / MAI', 'Comunicare publică', 'https://www.politiaromana.ro/ro/contact', 'Subiect de ordine publică / incident.', 'poate confirma datele operative, starea măsurilor și încadrarea comunicată public.');
+  if (kind === 'sport') add('Clubul / organizatorul competiției', 'Departament comunicare sportivă', '', 'Subiect sportiv.', 'poate confirma programul, lotul, cantonamentul și meciurile amicale.');
+  if (kind === 'politics' && /guvern|premier|minister|ordonanta|hotarare|consultari/.test(text)) add('Guvernul României', 'Biroul de presă', 'https://gov.ro/ro/contact', 'Subiect cu posibilă decizie guvernamentală.', 'poate confirma calendarul, decizia oficială și instituțiile implicate.');
+  if (kind === 'politics' && /presedint|cotroceni|nicusor|consultari/.test(text)) add('Administrația Prezidențială', 'Biroul de presă / comunicare publică', 'https://www.presidency.ro/ro/contact', 'Subiect cu posibilă relevanță prezidențială.', 'poate confirma agenda, poziția oficială și contextul instituțional.');
+  return contacts;
+}
+
+function matchLocalPoliticalContacts(topic, contacts) {
+  if (!contacts.length) return [];
+  const text = contactTopicText(topic);
+  const kind = detectContactKind(topic);
+  if (kind !== 'politics') return [];
+  const titleTokens = new Set(text.split(/\s+/).filter(Boolean));
+  const nameMatches = contacts.filter((c) => normalize(c.name).split(/\s+/).some((part) => part.length > 5 && titleTokens.has(part))).slice(0, 4);
+  const parties = ['PSD', 'PNL', 'USR', 'AUR', 'UDMR'];
+  const detectedParties = parties.filter((p) => new RegExp(`\\b${normalize(p)}\\b`).test(text));
+  const partyMatches = nameMatches.length ? [] : contacts.filter((c) => detectedParties.some((p) => normalize(c.party).includes(normalize(p)))).slice(0, 2);
+  return uniqueBy([...nameMatches, ...partyMatches], (c) => `${normalize(c.name)}|${c.phone}`).map((c) => ({
+    type: 'contact local',
+    name: c.name,
+    role: `Deputat ${c.party || ''}${c.constituency ? ` · ${c.constituency}` : ''}`,
+    phone: c.phone,
+    email: '',
+    url: '',
+    reason: 'Contact din fișierul încărcat de redacție.',
+    competence: 'poate oferi punct de vedere doar dacă subiectul intră în activitatea sa politică sau parlamentară.',
+    confidence: 70
+  }));
+}
+
+function buildContactQuestions(topic, contact) {
+  const kind = detectContactKind(topic);
+  const title = topic.title || 'subiectul menționat';
+  const key = normalize(`${contact.name || ''} ${contact.role || ''}`);
+  const domain = domainFromUrl(contact.url || '');
+  if (/camera de comert|ccib|ccir/.test(key)) return [
+    'Ce document a fost semnat concret și cine sunt semnatarii instituționali?',
+    'Ce domenii economice sunt vizate de memorandumul cu partea estoniană?',
+    'Există proiecte, misiuni economice sau evenimente programate după semnare?',
+    'Ce firme din București pot fi interesate și cum pot intra în contact cu partea estoniană?',
+    'Există un comunicat sau document public care poate fi citat în articol?'
+  ];
+  if (/deputat|senator/.test(key) || contact.type === 'contact local') return [
+    `Aveți o poziție publică despre subiectul „${title}” sau considerați că nu intră în atribuțiile dumneavoastră?`,
+    'Poziția este una personală sau a partidului?',
+    'Există un proiect legislativ, o întrebare parlamentară sau o inițiativă legată de acest subiect?',
+    'Ce efect concret vedeți pentru alegători sau pentru instituțiile implicate?',
+    'Ce document sau declarație publică putem cita pentru poziția dumneavoastră?'
+  ];
+  if (/mae|ministerul afacerilor externe/.test(key) && kind === 'travel_alert') return [
+    'Care sunt zonele sau liniile feroviare din Franța pentru care MAE recomandă atenție sporită?',
+    'Care este intervalul în care românii pot fi afectați de grevă?',
+    'Unde trebuie să verifice românii actualizările înainte de plecare: MAE, operatori feroviari sau autorități franceze?',
+    'Există recomandări consulare pentru persoanele care rămân blocate sau pierd legături de transport?',
+    'Atenționarea se poate prelungi sau actualiza în următoarele ore?'
+  ];
+  if (/protectia datelor|supraveghere/.test(key) || kind === 'data_privacy') return [
+    'Ce reguli se aplică atunci când date personale sunt expuse din greșeală înaintea unui eveniment sportiv internațional?',
+    'Ce tipuri de date intră în categoria informațiilor sensibile pentru public?',
+    'Când trebuie notificată persoana afectată și autoritatea competentă?',
+    'Ce măsuri minime trebuie anunțate de organizator după o breșă de securitate?',
+    'Ce ar trebui să facă persoanele care cred că datele lor au fost expuse?'
+  ];
+  if (kind === 'jobs' || /anofm/.test(key)) return [
+    'Câte locuri de muncă sunt disponibile în prezent și care sunt județele cu cele mai multe oferte?',
+    'Care sunt domeniile cu cele mai multe posturi și ce nivel de calificare se cere?',
+    'Cât de des se actualizează oferta și unde trebuie verificată lista oficială?',
+    'Ce pași trebuie să urmeze un candidat care găsește un post prin ANOFM?',
+    'Există diferențe importante față de perioada precedentă?'
+  ];
+  if (kind === 'moldova_education') return [
+    'Câți profesori din Taraclia și Bălți participă la program și în ce perioadă?',
+    'Ce instituții din România organizează perfecționarea pentru predarea limbii române?',
+    'Ce tip de cursuri sau module primesc profesorii?',
+    'Cum va fi evaluat efectul programului asupra elevilor din școli cu predare în rusă?',
+    'Există un calendar public sau un comunicat care poate fi citat?'
+  ];
+  if (kind === 'edu_sport_values') return [
+    'Ce școli sunt incluse în programul cu foști sportivi olimpici?',
+    'Care este mesajul educațional transmis elevilor prin întâlnirile cu sportivii?',
+    'Programul este punctual sau are calendar național?',
+    'Ce instituții sau federații susțin proiectul?',
+    'Există materiale publice sau un calendar al întâlnirilor?'
+  ];
+  if (kind === 'agri') return [
+    'Ce înseamnă concret împărțirea datoriilor fermierilor între termen mediu și termen scurt?',
+    'Ce culturi sau categorii de ferme sunt cele mai expuse la presiunea finanțării?',
+    'Cum poate influența costul creditării următorul ciclu agricol?',
+    'Există date publice despre restanțe, restructurări sau dificultăți de plată?',
+    'Ce ar trebui să urmărească fermierii înainte de următoarea campanie agricolă?'
+  ];
+  if (kind === 'food_prices') return [
+    'Care este lista completă a produselor cu adaos comercial plafonat?',
+    'Până când se aplică măsura și ce pași procedurali mai sunt necesari?',
+    'Cine verifică magazinele și ce sancțiuni sunt prevăzute?',
+    'Există diferențe față de forma aplicată anterior?',
+    'Ce efect estimați pentru prețurile de la raft?'
+  ];
+  if (kind === 'banking') return [
+    'Care este stadiul procedurii și ce instituții sau companii sunt vizate public?',
+    'Ce documente sau decizii pot fi citate în acest moment?',
+    'Ce înseamnă cazul pentru clienții cu rate sau credite legate de ROBOR?',
+    'Care este diferența dintre atribuțiile Consiliului Concurenței și ale BNR?',
+    'Ce informații nu pot fi comunicate cât timp procedura este în desfășurare?'
+  ];
+  if (kind === 'legal_tax' || kind === 'fraud_public_money') return [
+    'Care este stadiul exact al dosarului și ce instituție a comunicat informația?',
+    'Care este prejudiciul indicat oficial și cum a fost calculat?',
+    'Ce infracțiuni sau acuzații sunt menționate în documentele publice?',
+    'Au fost dispuse măsuri pentru recuperarea prejudiciului?',
+    'Ce precizări trebuie incluse pentru respectarea prezumției de nevinovăție?'
+  ];
+  if (kind === 'sport') return [
+    'Care este programul oficial al echipei: reunire, cantonament, meciuri amicale?',
+    'Ce jucători sunt confirmați în lot și ce situații sunt încă deschise?',
+    'Există adversari sau locații confirmate pentru perioada de pregătire?',
+    'Cine poate confirma modificările de program?',
+    'Ce urmează pentru echipă în următoarele zile?'
+  ];
+  if (kind === 'external') return [
+    'Care este informația confirmată oficial și ce provine doar din relatări externe?',
+    'Care este legătura concretă cu România, UE sau NATO?',
+    'Există o reacție oficială a României ori a partenerilor europeni?',
+    'Ce decizie sau evoluție poate schimba situația în regiune?',
+    'Ce elemente trebuie evitate pentru a nu transforma analiza în speculație?'
+  ];
+  if (contact.type === 'extras public') return [
+    `În articolul publicat de ${domain}, care este sursa primară a informației?`,
+    'Ce detaliu esențial trebuie verificat înainte de preluare?',
+    'Există o actualizare după publicarea articolului inițial?',
+    'Ce informație nu trebuie prezentată ca certitudine fără confirmare suplimentară?',
+    'Puteți indica documentul sau instituția care confirmă oficial subiectul?'
+  ];
+  return [
+    `Ce informații puteți confirma oficial despre „${title}”?`,
+    'Care este documentul sau comunicatul care poate fi citat?',
+    'Cine este afectat direct de informație?',
+    'Ce se schimbă concret pentru public?',
+    'Ce urmează în perioada imediat următoare?'
+  ];
+}

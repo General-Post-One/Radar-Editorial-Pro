@@ -1847,3 +1847,459 @@ function buildFallbackData() {
     stats: { checkedFreshTopics: 1, eligibleTopics: 1, blockedTopics: 0 }
   };
 }
+
+/* === FIX FINAL: clasificare strictă, brief/SEO/draft publicabile === */
+function topicTextAll(topic) {
+  return normalize(`${topic.title || ''} ${topic.summary || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')} ${(topic.sources || []).map((s) => `${s.name || ''} ${s.title || ''} ${s.description || ''} ${s.url || ''}`).join(' ')}`);
+}
+
+function cleanTitleBase(topic) {
+  return cleanupForArticle(topic.title || topic.seoTitle || 'Subiect nou')
+    .replace(/^\s*(breaking|live video|video|interviu)\s*[:|\-–—]?\s*/i, '')
+    .replace(/\s*\/\s*/g, '. ')
+    .replace(/\s*\|\s*/g, '. ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function detectTopicKind(topic) {
+  const text = topicTextAll(topic);
+  if (/atentionare.*calatorie|calatorie.*mae|greva.*franta|franta.*greva|trafic feroviar|transport feroviar|sncf|trenuri.*franta/.test(text)) return 'travel_alert';
+  if (/date personale|bresa de securitate|bre[sș]a de securitate|scurgere de date|expuse din greseala|messi.*cm 2026|cm 2026.*date/.test(text)) return 'data_privacy';
+  if (/ana maria branza|scrima|scrim[aă]|valori olimpice|sportivi olimpici|olimpici.*scoli|scoli.*olimpici/.test(text)) return 'edu_sport_values';
+  if (/taraclia|balti|b[aă]l[tț]i|predare in rusa|predare.*rusa|limba romana.*republicii moldova|republica moldova.*limba romana/.test(text)) return 'moldova_education';
+  if (/memorandum.*camera.*comert|camera de comert.*estonie|camera de comert.*bucuresti|industrie.*estonie/.test(text)) return 'business_memo';
+  if (/anofm|locuri de munca|joburi|angajari|somaj|piata muncii|ocuparea fortei de munca|candidati/.test(text)) return 'jobs';
+  if (/agricover|fermieri|fermier|agricol|agricultura|culturi|ciclu de cultura|credite agricole|indatorati/.test(text)) return 'agri';
+  if (/jupiter|documente false|cetateni ucraineni|refugiati|gazduieste|prejudiciu|frauda|inselaciune|bani publici/.test(text)) return 'fraud_public_money';
+  if (/robor|banca|banci|bnr|consiliul concurentei|concurenta|credit|rate|dobanda|dobanzi|manipulare/.test(text)) return 'banking';
+  if (/notar|impozit|contributii|prejudiciu|parchet|judecat|trimis in judecata|evaziune|dosar|registrul auto|rar|fals intelectual/.test(text)) return 'legal_tax';
+  if (/alimente|adaos|plafon|pret|preturi|retail|magazine|raft|cosul/.test(text)) return 'food_prices';
+  if (/tomac|guvern|premier|ministr|coalitie|parlament|pnl|psd|usr|aur|presedint|nicusor|grindeanu|motiune|alegeri/.test(text)) return 'politics';
+  if (/misha miller|artist|artista|concert|scena|showbiz|vedeta|vedete|festival/.test(text)) return 'entertainment';
+  if (/cfr cluj|fcsb|rapid|dinamo|craiova|fotbal|cantonament|transfer|meci|superliga|club/.test(text)) return 'sport';
+  if (/meteo|anm|cod galben|cod portocaliu|furtuni|ploi|canicula|vreme|vijelie/.test(text)) return 'weather';
+  if (/bac|evaluare|educatie|scoala|elev|profesor|examen|admitere|subiecte|barem/.test(text)) return 'education';
+  if (/sanatate|spital|medic|pacient|boala|tratament|medicament|cnas|dsp/.test(text)) return 'health';
+  if (/injunghiat|crima|omor|violenta|accident|incendiu|politie|victima|suspect|retinut|arest/.test(text)) return 'incident';
+  if (/ucraina|rusia|nato|patriot|marea neagra|moldova|sua|iran|bulgaria|ue|bruxelles|razboi|rachete|baloane explozive|aparare/.test(text)) return 'external';
+  return 'general';
+}
+
+function cleanPublisherName(source) {
+  const domain = domainFromUrlClient(source?.url || '').replace(/^www\./, '');
+  const raw = cleanupForArticle(source?.name || '').trim();
+  if (!raw || raw.length > 32 || raw.split(/\s+/).length > 4 || /http|operatiunea|barbat|femeie|breaking|live video|interviu/i.test(raw)) return domain || 'sursa citată';
+  return raw;
+}
+
+function buildLead(topic) {
+  const title = cleanTitleBase(topic);
+  const source = cleanPublisherName((topic.sources || [])[0] || {});
+  const kind = detectTopicKind(topic);
+  const leads = {
+    travel_alert: `Românii care călătoresc cu trenul în Franța pot fi afectați de greva din transportul feroviar, potrivit informațiilor atribuite MAE și relatate de ${source}. Partea utilă este unde pot apărea întârzieri, ce trebuie verificat înainte de plecare și cum se evită blocajele de traseu.`,
+    data_privacy: `O breșă de securitate legată de Campionatul Mondial din 2026 ridică întrebări despre date personale, acces și protecția informațiilor sensibile, potrivit ${source}. Pentru cititori, partea importantă nu este numele implicat, ci ce tip de date au fost expuse și ce măsuri au fost luate.`,
+    edu_sport_values: `Ana Maria Brânză vorbește despre întâlnirile foștilor olimpici cu elevii și despre felul în care sportul poate fi folosit ca lecție de disciplină, eșec și reluare a muncii de jos, potrivit ${source}. Subiectul merită tratat ca educație prin sport, nu ca simplu interviu.`,
+    moldova_education: `Profesori din școli cu predare în limba rusă din Republica Moldova vin în România într-un program legat de predarea limbii române, potrivit ${source}. Pentru publicul din România, subiectul ține de educație, identitate lingvistică și legătura cu Republica Moldova.`,
+    business_memo: `Camera de Comerț și Industrie a Municipiului București și Camera de Comerț și Industrie a Estoniei au semnat un memorandum de înțelegere, potrivit ${source}. Subiectul contează pentru firmele interesate de contacte economice, proiecte comune și acces la piețe din regiunea baltică.`,
+    jobs: `Piața muncii din România este sub presiune, iar datele despre posturile disponibile trebuie privite pe județe, domenii și nivel de pregătire, potrivit ${source}. Pentru cei care caută un job, numărul total este doar începutul: contează unde sunt locurile, ce se cere și cât de repede se actualizează oferta.`,
+    agri: `Datele despre datoriile fermierilor români arată presiunea financiară din agricultură, potrivit ${source}. Subiectul contează dincolo de ferme, pentru că finanțarea culturilor poate influența producția, investițiile și, indirect, prețurile alimentelor.`,
+    fraud_public_money: `Un dosar privind bani publici și documente false pentru găzduirea refugiaților ucraineni ridică problema verificării plăților făcute de stat, potrivit ${source}. Pentru cititori, partea importantă este prejudiciul, mecanismul reclamat de anchetatori și recuperarea banilor.`,
+    banking: `Discuția despre bănci, ROBOR și regulile de concurență are efect direct pentru oamenii cu credite, potrivit ${source}. Articolul trebuie să explice ce se anchetează, cine are competență și ce poate însemna pentru rate și încrederea în piața bancară.`,
+    legal_tax: `Un dosar cu posibil prejudiciu sau documente false trebuie explicat prin faptele comunicate oficial, stadiul procedurii și efectul asupra banilor publici, potrivit ${source}. Pentru cititori contează diferența dintre acuzații, anchetă și verdict.`,
+    politics: `Negocierile și declarațiile politice pot schimba calendarul unei majorități, lista de miniștri sau raportul de forțe dintre partide, potrivit ${source}. Partea relevantă pentru cititori este cine poate lua decizia și ce efect are asupra guvernării.`,
+    food_prices: `Deciziile privind plafonarea adaosului comercial la alimente sunt importante pentru cumpărători și magazine, potrivit ${source}. Textul trebuie să arate ce produse sunt vizate, până când se aplică măsura și ce efect se poate vedea la raft.`,
+    sport: `Programul unei echipe înaintea noului sezon contează pentru suporteri prin reunire, cantonament, lot și meciuri amicale, potrivit ${source}. Materialul trebuie să scoată datele utile, nu doar să repete anunțul clubului.`,
+    weather: `Avertizările meteo schimbă programul oamenilor din zonele vizate, potrivit ${source}. Informația utilă este intervalul, județele afectate și recomandările pentru trafic, locuințe și activități în aer liber.`,
+    education: `Subiectul din educație contează pentru elevi, părinți și profesori prin calendar, proceduri și documente oficiale, potrivit ${source}. Textul trebuie să arate cine este vizat și ce termen trebuie urmărit.`,
+    health: `Subiectul medical trebuie explicat prin efectul asupra pacienților, accesului la servicii și procedurilor oficiale, potrivit ${source}. Cititorii au nevoie să știe ce se schimbă concret și unde verifică informația.`,
+    incident: `Incidentul relatat trebuie tratat cu prudență, prin date confirmate despre persoane implicate, intervenția autorităților și măsurile luate, potrivit ${source}. Articolul trebuie să evite detaliile spectaculoase și să explice ce este confirmat.`,
+    external: `Subiectul extern are relevanță pentru România atunci când atinge securitatea regională, deciziile UE/NATO, vecinătatea estică sau costurile războiului, potrivit ${source}. Textul trebuie să explice legătura românească, nu doar să preia informația de peste graniță.`,
+    entertainment: `Subiectul de entertainment trebuie scris prin povestea persoanei, traseu, context local și interesul publicului, potrivit ${source}. Nu este suficientă reluarea unei declarații; contează ce spune momentul despre carieră și public.`
+  };
+  return leads[kind] || `${title}, potrivit ${source}. Articolul trebuie să explice informația principală, persoanele vizate și efectul concret pentru cititori.`;
+}
+
+function buildImpactReasonClient(topic) {
+  const kind = detectTopicKind(topic);
+  const map = {
+    travel_alert: 'Contează pentru românii care sunt sau urmează să plece în Franța: pot apărea întârzieri, anulări ori schimbări de traseu. Informația utilă este ce transporturi sunt afectate și unde se verifică actualizările înainte de plecare.',
+    data_privacy: 'Contează pentru că arată cât de ușor pot ajunge date personale în afara controlului, inclusiv în jurul unor evenimente mari precum CM 2026. Pentru cititori, întrebarea reală este ce date au fost expuse și ce măsuri de protecție au fost anunțate.',
+    edu_sport_values: 'Contează pentru elevi și profesori pentru că aduce sportul de performanță în școală ca model de disciplină, eșec gestionat și reluare a muncii. Subiectul este despre educație prin exemple reale, nu despre securitate sau politică externă.',
+    moldova_education: 'Contează pentru România și Republica Moldova prin limba română, educație și legătura dintre comunități. Programul poate influența felul în care profesorii predau limba română în zone cu predare în rusă.',
+    business_memo: 'Contează pentru firmele din București și Estonia care pot folosi memorandumul pentru contacte, proiecte și colaborări. Pentru cititori, partea utilă este ce oportunități economice pot apărea și cine le poate accesa.',
+    jobs: 'Contează pentru cei care caută un loc de muncă și pentru firmele care angajează. Numărul total nu spune totul: diferențele pe județe, domenii și condiții pot decide șansele reale ale candidaților.',
+    agri: 'Contează pentru că datoriile fermierilor pot influența investițiile în culturi, capacitatea de producție și presiunea asupra prețurilor alimentelor. Agricultura finanțată pe credit ajunge să conteze și pentru consumatori.',
+    fraud_public_money: 'Contează pentru că implică bani publici destinați sprijinului pentru refugiați și posibile documente false. Cititorii trebuie să înțeleagă mecanismul anchetat, prejudiciul și ce controale lipsesc sau urmează.',
+    banking: 'Contează pentru românii cu rate și pentru încrederea în sistemul bancar. O anchetă de concurență poate ridica întrebări despre costul creditelor, regulile pieței și drepturile clienților.',
+    legal_tax: 'Contează prin bani publici, documente oficiale și răspunderea celor care au atribuții legale sau fiscale. Articolul trebuie să separe clar acuzațiile de verdict și să explice prejudiciul.',
+    politics: 'Contează pentru că negocierile politice pot schimba guvernarea, calendarul deciziilor și numele celor care ajung în funcții. Cititorii au nevoie să știe ce se decide concret, nu doar cine atacă pe cine.',
+    food_prices: 'Contează pentru bugetul zilnic al familiilor și pentru regulile după care vând magazinele. Cititorii caută lista produselor, termenul măsurii și efectul real la raft.',
+    sport: 'Contează pentru suporteri prin program, lot, cantonament și pregătirea sezonului. Cititorii vor repere clare: când se reunește echipa, unde merge și ce schimbări apar în lot.',
+    weather: 'Contează imediat pentru oamenii din zonele vizate: trafic, locuințe, școli, culturi agricole și evenimente. Informația utilă este intervalul avertizării și recomandarea autorităților.',
+    education: 'Contează pentru elevi, părinți și profesori prin termene, proceduri, rezultate sau metodologii. Un text util spune cine este vizat și unde se verifică documentul oficial.',
+    health: 'Contează pentru pacienți și familii prin acces, costuri, programări sau reguli medicale. Articolul trebuie să explice procedura concretă și sursa oficială.',
+    incident: 'Contează prin siguranța oamenilor și reacția autorităților. Textul trebuie să spună ce este confirmat, ce măsuri s-au luat și ce date nu trebuie tratate ca verdict.',
+    external: 'Contează pentru România dacă subiectul schimbă securitatea regională, poziția UE/NATO, sprijinul pentru Ucraina sau riscurile din vecinătate. Legătura cu cititorul trebuie spusă clar.',
+    entertainment: 'Contează prin interesul publicului pentru persoană, traseu, context local și mesajul din declarații. Articolul trebuie să spună de ce momentul e relevant, nu doar ce a spus artistul.'
+  };
+  return map[kind] || 'Contează dacă schimbă ceva concret pentru cititori: bani, timp, siguranță, drepturi, servicii publice sau decizii instituționale.';
+}
+
+function inferAffectedPeople(topic) {
+  const kind = detectTopicKind(topic);
+  const map = {
+    travel_alert: 'românii care călătoresc în Franța, turiștii, navetiștii și cei care folosesc trenurile',
+    data_privacy: 'persoanele ale căror date pot fi expuse, fanii și organizatorii evenimentelor sportive mari',
+    edu_sport_values: 'elevii, profesorii, școlile și foștii sportivi implicați în proiecte educaționale',
+    moldova_education: 'profesorii din Republica Moldova, elevii din școli cu predare în rusă și instituțiile educaționale',
+    business_memo: 'firmele din București, companiile interesate de Estonia și camerele de comerț implicate',
+    jobs: 'candidații, angajatorii și agențiile județene pentru ocuparea forței de muncă',
+    agri: 'fermierii, finanțatorii agricoli și consumatorii afectați indirect de costurile producției',
+    fraud_public_money: 'contribuabilii, autoritățile care au făcut plăți și beneficiarii reali ai sprijinului pentru refugiați',
+    banking: 'românii cu credite, băncile și instituțiile care reglementează piața financiară',
+    legal_tax: 'contribuabilii, instituțiile judiciare și persoanele vizate de dosar',
+    politics: 'alegătorii, partidele și instituțiile care depind de următoarea decizie politică',
+    food_prices: 'cumpărătorii, magazinele, procesatorii și autoritățile de control',
+    sport: 'suporterii, clubul, jucătorii și stafful tehnic',
+    weather: 'locuitorii din zonele vizate, șoferii și autoritățile locale',
+    education: 'elevii, părinții, profesorii și inspectoratele',
+    health: 'pacienții, medicii și instituțiile medicale',
+    incident: 'persoanele implicate, comunitatea locală și autoritățile de anchetă',
+    external: 'românii interesați de securitatea regională, deciziile UE/NATO și efectele războiului din vecinătate',
+    entertainment: 'publicul artistului, organizatorii și comunitatea locală unde are loc evenimentul'
+  };
+  return map[kind] || 'cititorii care pot fi afectați concret de informație';
+}
+
+function inferNextStep(topic) {
+  const kind = detectTopicKind(topic);
+  const map = {
+    travel_alert: 'actualizările MAE și ale operatorilor feroviari din Franța',
+    data_privacy: 'precizările organizatorilor, măsurile de securitate și eventualele notificări privind datele expuse',
+    edu_sport_values: 'școlile incluse în program și calendarul întâlnirilor cu foștii olimpici',
+    moldova_education: 'calendarul programului și instituțiile care organizează perfecționarea profesorilor',
+    business_memo: 'proiectele concrete care pot apărea după semnarea memorandumului',
+    jobs: 'actualizarea ofertei ANOFM pe județe și domenii',
+    agri: 'costul finanțării și următoarea campanie agricolă',
+    fraud_public_money: 'comunicatele anchetatorilor și recuperarea prejudiciului',
+    banking: 'pozițiile Consiliului Concurenței, BNR și ale băncilor vizate',
+    legal_tax: 'stadiul dosarului și documentele oficiale ale Parchetului sau instanței',
+    politics: 'următoarea rundă de negocieri, vot sau anunț instituțional',
+    food_prices: 'publicarea actului și lista produselor vizate',
+    sport: 'programul oficial al cantonamentului, lotul și meciurile amicale',
+    weather: 'actualizarea avertizărilor ANM și intervențiile autorităților',
+    education: 'calendarul oficial, metodologia sau rezultatele publicate',
+    health: 'procedura oficială și recomandările instituțiilor medicale',
+    incident: 'comunicatul autorităților și măsurile luate în anchetă',
+    external: 'reacțiile oficiale și deciziile UE/NATO sau ale statelor implicate',
+    entertainment: 'programul evenimentelor, declarațiile noi și reacția publicului'
+  };
+  return map[kind] || 'documentul oficial sau reacția instituției competente';
+}
+
+function buildOficiulAngle(topic) {
+  const kind = detectTopicKind(topic);
+  const title = cleanTitleBase(topic);
+  const map = {
+    travel_alert: 'Unghi propriu: nu relua doar avertizarea MAE; fă material util pentru românii care pleacă sau sunt deja în Franța: trenuri afectate, ce verifică înainte de drum, ce alternative au.',
+    data_privacy: 'Unghi propriu: mută accentul de pe numele celebru pe datele personale expuse, riscul pentru fani și felul în care organizatorii trebuie să protejeze informațiile înainte de CM 2026.',
+    edu_sport_values: 'Unghi propriu: tratează interviul ca educație prin sport: ce învață elevii de la foști olimpici despre disciplină, eșec și muncă, nu ca simplu material de lifestyle.',
+    moldova_education: 'Unghi propriu: explică legătura dintre limba română, profesorii din Republica Moldova și rolul României în pregătirea cadrelor din școli cu predare în rusă.',
+    business_memo: 'Unghi propriu: arată ce oportunități poate deschide memorandumul pentru firmele din București și Estonia, nu doar că a fost semnat un document protocolar.',
+    jobs: 'Unghi propriu: pornește de la numărul de posturi și explică unde are sens să caute candidații, ce domenii absorb oameni și de ce oferta diferă mult între județe.',
+    agri: 'Unghi propriu: arată cum datoriile fermierilor pot ajunge să influențeze culturile, investițiile și prețurile alimentelor, nu doar bilanțul Agricover.',
+    fraud_public_money: 'Unghi propriu: pune accent pe banii publici, mecanismul documentelor false și controalele care ar trebui să protejeze sprijinul pentru refugiați.',
+    banking: 'Unghi propriu: explică efectul pentru clienții cu rate și pentru încrederea în bănci, nu doar conflictul dintre instituții.',
+    legal_tax: 'Unghi propriu: explică prejudiciul, obligațiile fiscale sau documentele false și stadiul dosarului, cu diferența clară între acuzație și verdict.',
+    politics: 'Unghi propriu: arată ce schimbă declarația în negocieri: cine câștigă timp, cine pierde presiune și ce decizie instituțională poate urma.',
+    food_prices: 'Unghi propriu: explică ce produse intră pe listă, cât durează plafonarea și cum se poate vedea măsura în prețul de la raft.',
+    sport: 'Unghi propriu: scrie pentru suporteri: program, cantonament, lot, amicale și ce anunță pregătirea despre noul sezon.',
+    weather: 'Unghi propriu: transformă avertizarea în informație practică: zone, ore, riscuri și recomandări pentru oameni.',
+    education: 'Unghi propriu: arată exact ce trebuie să știe elevii, părinții și profesorii: calendar, procedură, documente și termen.',
+    health: 'Unghi propriu: explică efectul pentru pacienți: acces, costuri, programări, documente sau riscul de confuzie.',
+    incident: 'Unghi propriu: separă faptele confirmate de detaliile neclare și explică reacția autorităților și riscul pentru comunitate.',
+    external: 'Unghi propriu: explică legătura cu România prin securitate, bugete, decizii UE/NATO sau riscurile de la granița estică.',
+    entertainment: 'Unghi propriu: găsește povestea din spatele declarației: traseul artistului, scena, publicul și de ce momentul are interes acum.'
+  };
+  return map[kind] || `Unghi propriu: găsește ce lipsește din relatările inițiale despre „${title}”: efectul concret, persoanele vizate și documentul care poate confirma informația.`;
+}
+
+function showBrief(topic) {
+  const focusKeyword = buildFocusKeyword(topic);
+  const titleIdea = buildSeoTitleIdeas(topic)[0] || buildSeoHeadline(topic);
+  el.dialogTitle.textContent = 'Brief + reguli șef';
+  el.dialogBody.innerHTML = `
+    <h3>${escapeHtml(cleanTitleBase(topic))}</h3>
+    <div class="editorial-box">
+      <p><strong>Unghi editorial:</strong> ${escapeHtml(buildOficiulAngle(topic).replace(/^Unghi propriu:\s*/,'').replace(/^Unghi:\s*/,''))}</p>
+    </div>
+    <h3>Rezumat rapid</h3>
+    <ul>
+      <li><strong>Ce s-a întâmplat:</strong> ${escapeHtml(cleanTitleBase(topic))}</li>
+      <li><strong>De ce contează:</strong> ${escapeHtml(buildImpactReasonClient(topic))}</li>
+      <li><strong>Cine este afectat:</strong> ${escapeHtml(inferAffectedPeople(topic))}</li>
+      <li><strong>Ce urmărești mai departe:</strong> ${escapeHtml(inferNextStep(topic))}</li>
+    </ul>
+    <h3>Structură recomandată</h3>
+    <ol>
+      <li><strong>Titlu:</strong> ${escapeHtml(titleIdea)}</li>
+      <li><strong>Șapou:</strong> ${escapeHtml(buildLead(topic))}</li>
+      ${buildSeoH2Recommendations(topic).slice(0,4).map((h) => `<li><strong>H2:</strong> ${escapeHtml(h)}</li>`).join('')}
+    </ol>
+    <h3>SEO rapid</h3>
+    <p><strong>Focus keyword:</strong> ${escapeHtml(focusKeyword)}</p>
+    <p><strong>Meta description:</strong> ${escapeHtml(buildMetaClient(topic, focusKeyword))}</p>
+    <p><strong>Categorie:</strong> ${escapeHtml(buildCategoryForKind(topic))}</p>
+    <p><strong>Taguri:</strong> ${escapeHtml(buildTags(topic).join(', '))}</p>
+    <h3>Surse externe detectate</h3>
+    <ul>${(topic.sources || []).slice(0, 4).map((s) => `<li><a href="${escapeAttr(s.url || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(cleanPublisherName(s))}${escapeHtml(formatAuthor(s))}</a></li>`).join('') || '<li>Nu există surse externe disponibile în card.</li>'}</ul>
+    <h3>Întrebări utile pentru telefon</h3>
+    <ol>${buildPhoneQuestions(topic).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
+  `;
+  openDialog();
+}
+
+function buildCategoryForKind(topic) {
+  const kind = detectTopicKind(topic);
+  const map = { jobs:'Business', agri:'Business', food_prices:'Business', banking:'Business', business_memo:'Business', travel_alert:'Călătorii', sport:'Sport', education:'Actualitate', edu_sport_values:'Actualitate', moldova_education:'Actualitate', health:'Health & Fitness', politics:'Politică', external:'Extern', data_privacy:'Tehnologie', entertainment:'Entertainment & Showbiz', weather:'Actualitate', incident:'Actualitate', legal_tax:'Actualitate', fraud_public_money:'Actualitate' };
+  return map[kind] || (topic.wpCategory || topic.category || 'Actualitate');
+}
+
+function buildFocusKeyword(topic) {
+  const titles = buildSeoTitleIdeas(topic);
+  const source = titles[0] || cleanTitleBase(topic);
+  const stop = new Set(['si','sau','cu','de','la','in','pe','pentru','din','un','o','ce','cum','este','sunt','despre','mai','video','foto','live','interviu','care','prin','pana']);
+  return removeDiacritics(normalize(source).split(/\s+/).filter((w) => w.length > 2 && !stop.has(w)).slice(0, 4).join(' ')).toLowerCase();
+}
+
+function buildMetaClient(topic, focusKeyword) {
+  const kind = detectTopicKind(topic);
+  const map = {
+    travel_alert: 'Romanii care merg in Franta pot fi afectati de greva feroviara. Ce trebuie verificat inainte de calatorie.',
+    data_privacy: 'Ce date personale au fost expuse in bresa de securitate si de ce conteaza protectia informatiilor inainte de CM 2026.',
+    edu_sport_values: 'Ana Maria Branza vorbeste despre valorile olimpice in scoli si lectiile pe care elevii le primesc de la fosti sportivi.',
+    moldova_education: 'Profesori din Republica Moldova vin in Romania pentru predarea limbii romane. Ce inseamna programul pentru elevi.',
+    business_memo: 'Camera de Comert Bucuresti si Estonia au semnat un memorandum. Ce oportunitati poate deschide pentru firme.',
+    jobs: 'Locuri de munca disponibile in Romania. Ce trebuie sa verifice cei care cauta un job prin ANOFM.',
+    agri: 'Datoriile fermierilor romani si creditele agricole pot influenta investitiile, culturile si preturile alimentelor.',
+    fraud_public_money: 'Dosar cu bani publici si documente false pentru gazduirea refugiatilor ucraineni. Ce ancheteaza procurorii.',
+    banking: 'Ancheta privind bancile si ROBOR conteaza pentru romanii cu rate. Ce institutii trebuie urmarite.',
+    food_prices: 'Adaos comercial plafonat la alimente. Ce produse, ce termen si ce efect poate avea decizia la raft.',
+    politics: 'Negocierile politice pot schimba guvernarea si lista de ministri. Ce decizie trebuie urmarita.',
+    external: 'Subiect extern cu efect pentru Romania, UE si NATO. Ce legatura are cu securitatea regionala.',
+    sport: 'Programul echipei, cantonamentul si lotul pentru noul sezon. Ce trebuie sa stie suporterii.',
+    weather: 'Avertizare meteo in Romania. Zonele vizate, intervalul anuntat si recomandarile pentru locuitori.',
+    legal_tax: 'Dosar fiscal sau penal cu prejudiciu. Ce spun anchetatorii si ce trebuie inteles despre procedura.',
+    incident: 'Incident anchetat de autoritati. Ce date sunt confirmate si ce masuri au fost anuntate.'
+  };
+  return removeDiacritics((map[kind] || `Afla ce se stie despre ${focusKeyword}, cine este vizat si ce efect concret are subiectul.`).slice(0, 158));
+}
+
+function buildSeoTitleIdeas(topic) {
+  const kind = detectTopicKind(topic);
+  const t = cleanTitleBase(topic);
+  const e = (topic.entities || []).filter(Boolean)[0] || sentenceCase(buildFocusKeyword(topic));
+  const sets = {
+    travel_alert: [
+      'Românii care merg cu trenul în Franța pot fi afectați de grevă. Avertizarea MAE pentru călători',
+      'Grevă în transportul feroviar din Franța. Ce trebuie să verifice românii înainte de plecare',
+      'Atenționare MAE pentru Franța: trenuri afectate și posibile întârzieri pentru călători',
+      'Călătorii în Franța, afectați de greva feroviară. Recomandările pe care trebuie să le verifice românii',
+      'Trafic feroviar perturbat în Franța. Ce riscă românii care au drumuri programate',
+      'Franța, sub avertizare de călătorie pentru grevă. Unde verifică românii informațiile despre trenuri'
+    ],
+    data_privacy: [
+      'Date personale expuse înainte de CM 2026. Ce arată cazul Messi despre securitatea informațiilor',
+      'Messi și breșa de securitate de la CM 2026. Ce date au fost expuse din greșeală',
+      'Breșă de securitate înainte de Cupa Mondială. De ce contează protecția datelor fanilor',
+      'Cazul Messi ridică problema datelor personale la evenimente sportive mari',
+      'Ce se știe despre datele expuse înainte de CM 2026 și cine trebuie să răspundă',
+      'Securitatea digitală la CM 2026: lecția din cazul datelor personale expuse'
+    ],
+    edu_sport_values: [
+      'Ana Maria Brânză duce valorile olimpice în școli. Ce mesaj primesc elevii de la foștii sportivi',
+      'Foști olimpici în fața elevilor. Lecția despre muncă, eșec și reluarea de la capăt',
+      'Sportul ca lecție pentru școală: ce le spune Ana Maria Brânză elevilor',
+      'Valorile olimpice ajung în școli prin foști sportivi. De ce contează pentru elevi',
+      'Ana Maria Brânză, despre ce învață copiii din sportul de performanță',
+      'De la podium la clasă: mesajul foștilor olimpici pentru elevi'
+    ],
+    moldova_education: [
+      'Profesori din școli cu predare în rusă vin în România pentru limba română. De ce contează programul',
+      'Limba română în școlile din Taraclia și Bălți. Programul care aduce profesori în România',
+      'România pregătește profesori din Republica Moldova pentru predarea limbii române',
+      'Profesori din Republica Moldova, la perfecționare în România. Cine sunt elevii vizați',
+      'Predarea limbii române în școli cu predare în rusă. Ce schimbă programul pentru profesori',
+      'Educație și limbă română peste Prut. De ce vin profesorii din Taraclia și Bălți în România'
+    ],
+    business_memo: [
+      'București și Estonia, legătură prin camerele de comerț. Ce poate aduce memorandumul pentru firme',
+      'Memorandum între Camera de Comerț București și Estonia. Ce oportunități pot apărea pentru companii',
+      'Firmele din București pot avea o nouă punte spre Estonia după memorandumul camerelor de comerț',
+      'Colaborare economică București–Estonia. Ce înseamnă documentul semnat de camerele de comerț',
+      'Un memorandum economic deschide discuții între București și Estonia. Cine poate profita',
+      'Camera de Comerț București și partenerii din Estonia: ce urmează pentru mediul de afaceri'
+    ],
+    jobs: [
+      'Aproape 34.000 de locuri de muncă în România. Ce verifică cei care caută un job',
+      'Locuri de muncă prin ANOFM. Unde trebuie să caute românii care vor să se angajeze',
+      'Piața muncii se strânge pentru candidați. Ce arată datele despre joburile disponibile',
+      'Joburi disponibile în România: județul și domeniul pot conta mai mult decât numărul total',
+      'Ce trebuie să știe candidații înainte să aplice la ofertele ANOFM',
+      'Mai puține locuri de muncă și concurență mai mare. Cum se vede piața pentru candidați'
+    ],
+    agri: [
+      'Fermierii români și presiunea datoriilor. Ce arată datele Agricover despre creditele agricole',
+      'Cât de îndatorați sunt fermierii români și de ce contează pentru prețurile alimentelor',
+      'Creditele fermierilor, între ciclul de cultură și investițiile pe termen mediu',
+      'Agricultura românească depinde tot mai mult de finanțare. Ce spune Agricover despre datorii',
+      'Datoriile din agricultură și riscul pentru următorul ciclu de cultură',
+      'De ce creditele fermierilor pot ajunge să conteze și pentru consumatori'
+    ],
+    fraud_public_money: [
+      'Bani pentru refugiați ucraineni, obținuți cu documente false. Ce anchetează procurorii',
+      'Caz Jupiter în Maramureș: plăți pentru găzduirea refugiaților, sub lupa anchetatorilor',
+      'Documente false pentru bani publici. Cum este descris dosarul privind refugiații ucraineni',
+      'Anchetă penală după plăți pentru refugiați ucraineni. Ce prejudiciu este verificat',
+      'Sprijinul pentru refugiați și controalele statului. Ce arată cazul din Maramureș',
+      'Dosar cu bani publici și refugiați ucraineni. Ce trebuie urmărit în anchetă'
+    ],
+    banking: [
+      'ROBOR, bănci și concurență. Ce trebuie să știe românii cu rate',
+      'Ancheta privind băncile și ROBOR: unde este problema pentru clienți',
+      'Ratele românilor și regulile de concurență. Ce se discută în cazul băncilor',
+      'Ce pot afla clienții după acuzațiile legate de manipularea ROBOR',
+      'Consiliul Concurenței și băncile. De ce contează dosarul pentru credite',
+      'Costul creditelor și încrederea în piața bancară: ce întrebări ridică ancheta'
+    ],
+    legal_tax: [
+      'Dosar cu documente false sau prejudiciu. Ce trebuie înțeles din acuzațiile anchetatorilor',
+      'Bani care trebuiau să ajungă la stat. Ce arată dosarul și ce urmează în instanță',
+      'Fals intelectual, impozite sau prejudiciu: ce spun anchetatorii și ce nu este încă verdict',
+      'Cazul care pune presiune pe controalele instituțiilor. Ce documente sunt vizate',
+      'Prejudiciu și răspundere legală. De ce contează dosarul pentru contribuabili',
+      'Anchetă cu efect public: acuzațiile, instituția vizată și prezumția de nevinovăție'
+    ],
+    food_prices: [
+      'Adaos comercial plafonat la alimente. Ce produse și ce termen contează pentru cumpărători',
+      'Alimentele de bază rămân cu prețuri plafonate. Ce se schimbă la raft',
+      'Plafonarea adaosului comercial, prelungită. Cine verifică magazinele și ce urmăresc cumpărătorii',
+      'Coșul zilnic și plafonarea prețurilor. Ce trebuie să știe românii până la finalul anului',
+      'Lista alimentelor cu adaos plafonat. Ce produse rămân în măsură',
+      'Prețurile la alimente și decizia Parlamentului. Ce efect poate avea pentru familii'
+    ],
+    politics: [
+      `${e} și negocierile politice. Ce se poate schimba după noul anunț`,
+      'Schimbare de poziție în negocieri. Cine câștigă timp și cine pierde teren',
+      'Numele de miniștri, între presiune politică și compromis. Ce urmează pentru partide',
+      `De ce declarația lui ${e} poate schimba calculele pentru viitorul Guvern`,
+      `Negocierile pentru putere intră într-o nouă etapă. Ce semnal transmite ${e}`,
+      'Partidele caută nume acceptate de toți. Ce arată disputa din jurul miniștrilor'
+    ],
+    external: [
+      'Războiul din Ucraina și costul deciziilor militare. Ce contează pentru România',
+      'Apărarea Ucrainei se schimbă prin soluții ieftine. De ce urmărește România subiectul',
+      'Decizii militare în regiune. Ce legătură au cu securitatea României',
+      'Ucraina, Rusia și presiunea pe apărarea aeriană. Ce trebuie urmărit la granița estică',
+      'Soluții de război cu cost mic și efect regional. De ce contează pentru flancul estic',
+      'Cum schimbă războiul calculele de securitate din vecinătatea României'
+    ],
+    sport: [
+      `${e}: programul de pregătire și primele semne pentru noul sezon`,
+      'Reunirea echipei și cantonamentul: ce urmează pentru lot',
+      `Cum se pregătește ${e} pentru sezon. Datele care contează pentru suporteri`,
+      'Cantonament, lot și meciuri amicale. Ce trebuie urmărit înainte de sezon',
+      'Primele decizii după reunire. Ce arată programul echipei',
+      'Suporterii află primele repere ale pregătirii: lot, amicale și cantonament'
+    ],
+    entertainment: [
+      'Misha Miller, de pe scena din Iași la povestea celor două vieți paralele',
+      'Cum a ajuns Misha Miller în fața publicului din Iași și ce spune despre drumul ei',
+      'Povestea Misha Miller: scena, publicul și declarația care a atras atenția',
+      'Misha Miller și momentul de la Iași. De ce caută publicul povestea artistei',
+      'De la declarație la carieră: ce arată apariția Misha Miller de la Iași',
+      'Misha Miller, între scenă și poveste personală. Ce se știe acum'
+    ]
+  };
+  const generic = [
+    `${t}. Ce se știe acum și cine este afectat`,
+    `Ce schimbă informația despre ${e} pentru public`,
+    `Datele noi din surse și efectul concret pentru cititori`,
+    `Contextul care lipsește din primele relatări despre ${e}`,
+    `Cine este vizat de subiect și ce document trebuie urmărit`,
+    `De ce informația despre ${e} nu trebuie tratată ca simplă preluare`
+  ];
+  return Array.from(new Set((sets[kind] || generic).map((x) => shortenTitleForSeo(x).replace(/\s+/g,' ').trim()).filter(Boolean))).slice(0,6);
+}
+
+function buildSeoH2Recommendations(topic) {
+  const kind = detectTopicKind(topic);
+  const sets = {
+    travel_alert: ['Grevă în transportul feroviar din Franța: ce anunță MAE', 'Ce trebuie să verifice românii înainte de călătorie', 'Trenuri, întârzieri și alternative pentru călători', 'Unde apar actualizările oficiale despre traficul feroviar', 'Cum pot fi afectați turiștii și românii din Franța'],
+    data_privacy: ['Ce date personale au fost expuse înainte de CM 2026', 'De ce breșa de securitate contează pentru fani și organizatori', 'Ce măsuri trebuie explicate după expunerea datelor', 'Cum ajung informațiile sensibile să devină risc public', 'Ce trebuie urmărit până la Campionatul Mondial'],
+    edu_sport_values: ['Ana Maria Brânză și valorile olimpice duse în școli', 'Ce le spun foștii sportivi olimpici elevilor', 'De ce sportul poate fi lecție despre muncă și eșec', 'Cum pot folosi școlile exemplele din performanță', 'Ce urmează pentru proiectele educaționale prin sport'],
+    moldova_education: ['Profesori din Taraclia și Bălți vin în România pentru limba română', 'De ce contează predarea limbii române în școli cu predare în rusă', 'Legătura dintre educație, Republica Moldova și România', 'Cine organizează programul de perfecționare', 'Ce efect poate avea pregătirea profesorilor asupra elevilor'],
+    business_memo: ['Memorandum București–Estonia între camerele de comerț', 'Ce oportunități poate deschide documentul pentru firme', 'Domeniile în care pot apărea proiecte comune', 'De ce contează Estonia pentru mediul de afaceri din București', 'Pașii următori după semnarea memorandumului'],
+    jobs: ['Locuri de muncă disponibile prin ANOFM: ce arată oferta națională', 'Unde trebuie să caute cei care vor să se angajeze acum', 'Ce domenii pot avea nevoie de oameni și ce verifică un candidat', 'De ce numărul posturilor libere diferă de la un județ la altul', 'Ce pași trebuie făcuți înainte de aplicare'],
+    agri: ['Datoriile fermierilor români și presiunea pe următorul ciclu agricol', 'Credite pe termen mediu și finanțarea culturilor: ce spune Agricover', 'De ce costul finanțării poate influența producția agricolă', 'Cum se poate vedea presiunea din ferme în prețurile alimentelor', 'Ce urmăresc fermierii înainte de următoarea campanie agricolă'],
+    external: ['Ce schimbă subiectul pentru securitatea din vecinătatea României', 'Legătura cu Ucraina, Rusia și deciziile de apărare', 'De ce soluțiile militare ieftine pot conta în războiul de uzură', 'Cum poate afecta subiectul flancul estic al NATO', 'Reacțiile oficiale care trebuie urmărite'],
+    politics: ['Declarația care poate schimba negocierile politice', 'Cine câștigă timp și cine pierde presiune', 'Numele de miniștri și compromisul dintre partide', 'Calendarul deciziei politice care trebuie urmărit', 'Ce efect poate avea disputa asupra viitorului Guvern'],
+    sport: ['Programul de pregătire și cantonamentul echipei', 'Ce jucători sunt așteptați la reunire', 'Meciurile amicale și datele care trebuie confirmate', 'De ce pregătirea contează pentru suporteri', 'Ce poate urma pe piața transferurilor'],
+    food_prices: ['Alimentele cu adaos comercial plafonat: ce se schimbă pentru cumpărători', 'Lista produselor vizate și termenul până la care se aplică măsura', 'Cum se vede plafonarea la raft și în bugetul familiei', 'Cine controlează magazinele și ce riscă retailerii', 'Ce efect poate avea decizia asupra prețurilor']
+  };
+  const fallback = [`${cleanTitleBase(topic)}: informația nouă din surse`, `Cine este afectat concret de subiect`, `Ce document sau reacție poate schimba articolul`, `Contextul care lipsește din primele relatări`, `Ce trebuie urmărit în următoarele zile`];
+  return Array.from(new Set((sets[kind] || fallback).map((x) => x.replace(/\s+/g,' ').trim()).filter(Boolean))).slice(0,5);
+}
+
+function showTitles(topic) {
+  const focusKeyword = buildFocusKeyword(topic);
+  const titles = buildSeoTitleIdeas(topic);
+  el.dialogTitle.textContent = 'SEO complet';
+  el.dialogBody.innerHTML = `
+    <h3>Titluri propuse</h3>
+    <ol>${titles.map((title) => `<li>${escapeHtml(title)}</li>`).join('')}</ol>
+    <h3>Pachet SEO</h3>
+    <p><strong>Focus keyword:</strong> ${escapeHtml(focusKeyword)}</p>
+    <p><strong>SEO title fără diacritice:</strong> ${escapeHtml(removeDiacritics(titles[0] || cleanTitleBase(topic)))}</p>
+    <p><strong>Slug:</strong> ${escapeHtml(slugify(titles[0] || cleanTitleBase(topic)))}</p>
+    <p><strong>Meta description:</strong> ${escapeHtml(buildMetaClient(topic, focusKeyword))}</p>
+    <p><strong>Excerpt:</strong> ${escapeHtml(buildLead(topic))}</p>
+    <p><strong>Categorie principală:</strong> ${escapeHtml(buildCategoryForKind(topic))}</p>
+    <p><strong>Categorii secundare:</strong> ${escapeHtml(buildSecondaryCategories(topic).join(', '))}</p>
+    <p><strong>Taguri max 4:</strong> ${escapeHtml(buildTags(topic).join(', '))}</p>
+    <h3>H2/H3 recomandate</h3>
+    <ul>${buildSeoH2Recommendations(topic).map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul>
+  `;
+  openDialog();
+}
+
+function buildLocalCopyPasteDraft(topic) {
+  const sources = getCleanSources(topic).slice(0, 2);
+  const title = buildPublishableDraftTitle(topic);
+  const lead = buildLead(topic);
+  const h2s = buildSeoH2Recommendations(topic).slice(0, 3);
+  const source = sources[0] || {};
+  const sourceName = cleanPublisherName(source);
+  const detail = firstUsefulDetail(topic, sources) || cleanTitleBase(topic);
+  const link = source.url ? `[${sourceName}](${source.url})` : sourceName;
+  const kind = detectTopicKind(topic);
+  const section1 = `Potrivit ${link}, ${lowercaseFirstForArticle(shortenForArticle(detail, 340))}.`;
+  const impact = buildImpactReasonClient(topic);
+  const short = buildArticleShortBox(topic, sources).replace(/Subiectul apare în.*$/,'').trim();
+  const next = inferNextStep(topic);
+  const endings = {
+    travel_alert: `Pentru cei care au drumuri programate în Franța, următoarea informație importantă este actualizarea transmisă de MAE sau de operatorii feroviari. Până atunci, articolul trebuie să rămână util: ce linii pot fi afectate, când este greva și unde verifică oamenii înainte să plece.`,
+    data_privacy: `Următorul element important este reacția organizatorilor și măsurile de protecție anunțate după expunerea datelor. Pentru public, cazul rămâne relevant atât timp cât arată cum sunt protejate informațiile personale la evenimente sportive mari.`,
+    edu_sport_values: `Următorul pas ține de școlile incluse în program și de felul în care astfel de întâlniri pot fi transformate în educație reală, nu doar în evenimente punctuale.`,
+    moldova_education: `În perioada următoare contează calendarul programului, numărul profesorilor implicați și efectul pe care pregătirea îl poate avea în școlile cu predare în rusă din Republica Moldova.`,
+    business_memo: `După semnarea memorandumului, partea care contează este dacă apar proiecte, întâlniri de afaceri sau oportunități concrete pentru firmele din București și Estonia.`,
+    jobs: `Pentru cei care caută un job, pasul practic este verificarea ofertei actualizate pe județ și domeniu. Numărul total arată direcția pieței, dar decizia se ia la nivel de post, salariu, experiență și termen de aplicare.`,
+    agri: `Pentru agricultură, următoarea perioadă va arăta cât de mult pot susține fermierii următorul ciclu de cultură prin credite și investiții. Presiunea din ferme se poate vedea mai târziu în producție și prețuri.`,
+    fraud_public_money: `Dosarul rămâne important prin prejudiciu și prin felul în care statul verifică plățile din bani publici. Următoarele date relevante sunt măsurile anunțate de anchetatori și recuperarea sumelor.`,
+    politics: `În politică, declarația contează numai dacă schimbă o decizie: nume de miniștri, calendar de negocieri, vot sau susținere parlamentară. Următoarea reacție a partidelor va arăta dacă este compromis real sau doar presiune publică.`,
+    external: `Pentru România, următoarea etapă este legătura cu deciziile regionale: securitate, UE, NATO, apărare sau costurile războiului. Fără această legătură, subiectul rămâne doar o relatare externă.`
+  };
+  return `# ${title}\n\n${lead}\n\n## ${h2s[0] || 'Ce se știe acum'}\n\n${section1}\n\n## ${h2s[1] || 'De ce contează'}\n\n${impact}\n\n## Pe scurt\n\n${short || detail}\n\n## ${h2s[2] || 'Ce urmează'}\n\n${endings[kind] || `Următoarea informație de urmărit este ${next}. Articolul trebuie actualizat dacă apar date noi sau reacții oficiale care schimbă efectul pentru cititori.`}`;
+}
