@@ -536,10 +536,10 @@ function showBrief(topic) {
     <ol>
       <li><strong>Titlu cu partea importantă clară:</strong> ${escapeHtml(topic.seoTitle || buildSeoHeadline(topic))}</li>
       <li><strong>Lead 2–4 rânduri:</strong> ${escapeHtml(buildLead(topic))}</li>
-      <li><strong>Context:</strong> ce lipsește din știrea brută și de ce subiectul contează pentru români.</li>
+      <li><strong>Context:</strong> ${escapeHtml(buildOficiulAngle(topic))}</li>
       <li><strong>Pe scurt:</strong> 3–4 bulleturi cu date verificate.</li>
-      <li><strong>Ce înseamnă pentru cititor:</strong> bani, timp, drepturi, siguranță, politică, familie sau servicii publice.</li>
-      <li><strong>Ce urmează:</strong> următorul document, vot, comunicat, reacție, termen sau update.</li>
+      <li><strong>Ce înseamnă pentru cititor:</strong> ${escapeHtml(buildImpactReasonClient(topic))}</li>
+      <li><strong>Ce urmează:</strong> ${escapeHtml(inferNextStep(topic))}</li>
     </ol>
 
     <h3>Pe scurt</h3>
@@ -640,7 +640,7 @@ function showCopyPasteDraft(topic) {
   try {
     const draft = buildLocalCopyPasteDraft(topic);
     el.dialogBody.innerHTML = `
-      <p class="muted">Draft local construit din sursele detectate de radar. Verifică datele oficiale înainte de publicare.</p>
+      <p class="muted">Draft local gata de copy-paste, construit din informațiile găsite în sursele cardului.</p>
       <textarea class="draft-textarea large" readonly>${escapeHtml(draft)}</textarea>
       <div class="dialog-actions">
         <button class="btn btn-primary" type="button" onclick="navigator.clipboard.writeText(this.closest('.dialog-body').querySelector('textarea').value)">Copiază draftul</button>
@@ -666,17 +666,6 @@ function showLinksAndImages(topic) {
       <li>ora publicării și eventualele actualizări apărute după prima știre;</li>
       <li>instituția care poate confirma oficial datele;</li>
       <li>dacă subiectul există deja pe Oficiul de Știri, dar pe alt unghi.</li>
-    </ul>
-
-    <h3>Checklist final pentru material</h3>
-    <ul>
-      <li>titlu clar, pe expresia pe care o caută oamenii;</li>
-      <li>șapou cu cine, ce, când și efectul pentru cititor;</li>
-      <li>minimum o sursă externă verificată și, unde se poate, o sursă oficială;</li>
-      <li>fără afirmații care nu apar în sursă sau în documente oficiale;</li>
-      <li>H2-uri concrete, pe subiect, nu intertitluri generice;</li>
-      <li>focus keyword fără diacritice și slug scurt;</li>
-      <li>poza se caută separat manual, doar din surse legale clare.</li>
     </ul>
   `;
   openDialog();
@@ -845,8 +834,8 @@ Checklist final:
 }
 
 function buildLocalCopyPasteDraft(topic) {
-  const title = buildPublishableDraftTitle(topic);
   const sources = getCleanSources(topic).slice(0, 3);
+  const title = buildPublishableDraftTitle(topic);
   const lead = buildPublishableLead(topic, sources);
   const mainH2 = buildArticleMainH2(topic);
   const mainSection = buildPublishableMainSection(topic, sources);
@@ -855,10 +844,6 @@ function buildLocalCopyPasteDraft(topic) {
   const shortBox = buildPublishableShortBox(topic, sources);
   const nextH2 = buildPublishableNextH2(topic);
   const nextSection = buildPublishableNextSection(topic, sources);
-  const links = chooseExternalLinks(topic).slice(0, 2);
-  const linkParagraph = links.length
-    ? `\n\nSurse folosite: ${links.map((l) => `[${l.anchor}](${l.url})`).join(' și ')}.`
-    : '';
 
   return `# ${title}
 
@@ -878,105 +863,148 @@ ${shortBox}
 
 ## ${nextH2}
 
-${nextSection}${linkParagraph}`;
+${nextSection}`;
+}
+
+function detectTopicKind(topic) {
+  const text = normalize(`${topic.title || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')} ${(topic.sources || []).map((s) => `${s.title || ''} ${s.description || ''}`).join(' ')}`);
+  if (/anofm|locuri de munca|joburi|angajari|somaj|ocuparea fortei de munca/.test(text)) return 'jobs';
+  if (/agricover|fermieri|fermier|agricol|agricultura|culturi|cultura|seceta|subventii|apia|credite agricole|indatorati/.test(text)) return 'agri';
+  if (/jupiter|documente false|cetateni ucraineni|refugiati|gazduieste|prejudiciu|frauda|inselaciune|bani publici/.test(text)) return 'fraud_public_money';
+  if (/robor|banca|bnr|consiliul concurentei|concurenta|credit|rate|dobanda|dobanzi|manipulare/.test(text)) return 'banking';
+  if (/notar|impozit|contributii|prejudiciu|parchet|judecat|trimis in judecata|evaziune|dosar/.test(text)) return 'legal_tax';
+  if (/tomac|guvern|premier|ministr|coalitie|parlament|pnl|psd|usr|aur|presedint|nicusor|grindeanu|motiune/.test(text)) return 'politics';
+  if (/alimente|adaos|plafon|pret|preturi|retail|magazine|raft/.test(text)) return 'food_prices';
+  if (/ucraina|rusia|nato|patriot|marea neagra|moldova|sua|iran|bulgaria|ue|bruxelles/.test(text)) return 'external';
+  if (/cfr cluj|fcsb|rapid|dinamo|craiova|fotbal|cantonament|transfer|meci|superliga|club/.test(text)) return 'sport';
+  if (/meteo|anm|cod galben|cod portocaliu|furtuni|ploi|canicula|vreme|vijelie/.test(text)) return 'weather';
+  if (/injunghiat|crima|omor|violenta|accident|incendiu|politie|victima|suspect|retinut/.test(text)) return 'incident';
+  if (/bac|evaluare|educatie|scoala|elev|profesor|examen|admitere|subiecte|barem/.test(text)) return 'education';
+  if (/sanatate|spital|medic|pacient|boala|tratament|medicament|cnas|dsp/.test(text)) return 'health';
+  return 'general';
+}
+
+function cleanPublisherName(source) {
+  const urlName = domainFromUrlClient(source?.url || '').replace(/^www\./, '');
+  const raw = cleanupForArticle(source?.name || '').trim();
+  const tooLong = raw.length > 35 || raw.split(/\s+/).length > 4;
+  const looksLikeTitle = raw && source?.title && normalize(raw) === normalize(source.title);
+  if (!raw || tooLong || looksLikeTitle || /http|operatiunea|barbat|femeie|live video|breaking/i.test(raw)) return urlName || 'sursa citată';
+  return raw;
 }
 
 function buildPublishableDraftTitle(topic) {
   const raw = cleanupForArticle(topic.title || topic.seoTitle || 'Subiect nou');
-  const text = normalize(`${raw} ${topic.interest || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')}`);
-  const base = raw.replace(/^live video\s*/i, '').replace(/\s*\|\s*/g, '. ');
-  if (/tomac|guvern|premier|ministr|coalitie|parlament|pnl|psd|usr|aur|presedint|nicusor|grindeanu/.test(text)) return `${base}. Ce poate schimba în negocierile politice`;
-  if (/notar|impozit|prejudiciu|parchet|judecat|dosar/.test(text)) return `${base}. Prejudiciul anunțat și etapa dosarului`;
-  if (/alimente|adaos|plafon|pret|preturi/.test(text)) return `${base}. Ce produse și ce prețuri sunt vizate`;
-  if (/robor|banca|bnr|concurenta|credit|rate/.test(text)) return `${base}. Ce riscă băncile și ce trebuie să știe clienții`;
-  if (/ucraina|rusia|nato|patriot|marea neagra|moldova/.test(text)) return `${base}. De ce contează și pentru România`;
-  if (/cfr cluj|fcsb|rapid|dinamo|craiova|fotbal|cantonament|transfer/.test(text)) return `${base}. Programul echipei și ce urmează pentru suporteri`;
-  if (/meteo|anm|cod|furtuni|ploi|canicula/.test(text)) return `${base}. Zonele vizate și intervalul cu risc`;
-  if (/injunghiat|crima|omor|violenta|accident|incendiu/.test(text)) return `${base}. Ce spun primele date despre incident`;
-  return base;
+  const kind = detectTopicKind(topic);
+  const short = raw.replace(/^live video\s*/i, '').replace(/\s*\|\s*/g, '. ');
+  if (kind === 'jobs') return 'Aproape 34.000 de locuri de muncă sunt disponibile în România. Ce trebuie să verifice cei care caută un job';
+  if (kind === 'agri') return 'Fermierii români și presiunea datoriilor. Ce arată datele Agricover despre creditele din agricultură';
+  if (kind === 'fraud_public_money') return 'Bani pentru găzduirea refugiaților ucraineni, obținuți cu documente false. Ce anchetează procurorii';
+  if (kind === 'banking') return 'Băncile, ROBOR și ancheta de concurență. Ce trebuie să știe românii cu rate';
+  if (kind === 'legal_tax') return `${short}. Ce sumă indică anchetatorii și ce urmează în dosar`;
+  if (kind === 'politics') return `${short}. De ce contează în negocierile pentru putere`;
+  if (kind === 'food_prices') return `${short}. Ce produse și ce termen sunt importante pentru cumpărători`;
+  if (kind === 'external') return `${short}. Legătura cu România și cu deciziile din regiune`;
+  if (kind === 'sport') return `${short}. Programul echipei și primele decizii pentru noul sezon`;
+  if (kind === 'weather') return `${short}. Zonele vizate și intervalul în care vremea se schimbă`;
+  if (kind === 'incident') return `${short}. Primele date despre victimă, suspect și anchetă`;
+  return short;
 }
 
 function buildPublishableLead(topic, sources) {
   const detail = firstUsefulDetail(topic, sources) || cleanupForArticle(topic.title || '');
-  const sourceName = sources[0]?.name || 'sursa citată';
-  const text = normalize(`${topic.title || ''} ${detail} ${(topic.keywords || []).join(' ')}`);
-  const who = detail.charAt(0).toLocaleUpperCase('ro-RO') + detail.slice(1);
-  if (/tomac|guvern|premier|ministr|coalitie|parlament|pnl|psd|usr|aur|presedint|nicusor|grindeanu/.test(text)) {
-    return `${who}, potrivit informațiilor publicate de ${sourceName}. Anunțul intră în zona negocierilor politice și contează pentru că poate schimba felul în care se formează sau se blochează o majoritate.`;
-  }
-  if (/notar|impozit|prejudiciu|parchet|judecat|dosar/.test(text)) {
-    return `${who}, potrivit informațiilor publicate de ${sourceName}. Cazul este important pentru că vorbește despre bani publici, obligații fiscale și răspunderea unei profesii care lucrează direct cu acte și tranzacții.`;
-  }
-  if (/alimente|adaos|plafon|pret|preturi/.test(text)) {
-    return `${who}, potrivit informațiilor publicate de ${sourceName}. Decizia contează direct pentru cumpărători, magazine și producători, pentru că poate influența prețurile alimentelor de bază în următoarele luni.`;
-  }
-  if (/robor|banca|bnr|concurenta|credit|rate/.test(text)) {
-    return `${who}, potrivit informațiilor publicate de ${sourceName}. Subiectul îi interesează pe românii cu credite, dar și piața bancară, pentru că pune în discuție regulile de concurență și costul banilor.`;
-  }
-  if (/ucraina|rusia|nato|patriot|marea neagra|moldova/.test(text)) {
-    return `${who}, potrivit informațiilor publicate de ${sourceName}. Subiectul are relevanță pentru România prin legătura cu securitatea regională, deciziile NATO/UE și presiunea de la granița estică.`;
-  }
-  if (/cfr cluj|fcsb|rapid|dinamo|craiova|fotbal|cantonament|transfer/.test(text)) {
-    return `${who}, potrivit informațiilor publicate de ${sourceName}. Pentru suporteri, partea importantă este programul echipei, pregătirea sezonului și eventualele schimbări de lot.`;
-  }
-  return `${who}, potrivit informațiilor publicate de ${sourceName}. Subiectul trebuie explicat prin efectul concret pentru cititori, nu doar prin faptul că a apărut în fluxul de știri.`;
+  const sourceName = cleanPublisherName(sources[0] || {});
+  const kind = detectTopicKind(topic);
+  const sentence = detail.charAt(0).toLocaleUpperCase('ro-RO') + detail.slice(1);
+  if (kind === 'jobs') return `${sentence}, potrivit ${sourceName}. Anunțul este util pentru cei care caută un loc de muncă acum, dar și pentru angajatorii care încearcă să acopere posturi într-o piață în care oferta diferă mult de la un județ la altul.`;
+  if (kind === 'agri') return `${sentence}, potrivit ${sourceName}. Datele arată cât de apăsat este sectorul agricol de credite și costuri, într-un moment în care fermierii depind de finanțare pentru fiecare ciclu de producție.`;
+  if (kind === 'fraud_public_money') return `${sentence}, potrivit ${sourceName}. Cazul pune în discuție felul în care sunt verificate plățile din bani publici și ajutoarele acordate în contextul refugiaților ucraineni.`;
+  if (kind === 'banking') return `${sentence}, potrivit ${sourceName}. Pentru românii cu credite, subiectul contează prin legătura cu dobânzile, ratele și încrederea în regulile pieței bancare.`;
+  if (kind === 'legal_tax') return `${sentence}, potrivit ${sourceName}. Cazul este important pentru că vorbește despre bani care ar fi trebuit să ajungă la buget și despre răspunderea celor care gestionează acte, tranzacții sau obligații fiscale.`;
+  if (kind === 'politics') return `${sentence}, potrivit ${sourceName}. Declarația contează pentru că poate schimba negocierile dintre partide, numele puse pe masă și ritmul în care se poate forma o majoritate.`;
+  if (kind === 'food_prices') return `${sentence}, potrivit ${sourceName}. Pentru cumpărători, partea importantă este dacă măsura se vede la raft, ce produse intră pe listă și cât timp rămâne valabilă plafonarea.`;
+  if (kind === 'external') return `${sentence}, potrivit ${sourceName}. Subiectul are legătură cu România prin securitate regională, decizii europene sau poziționarea statelor din vecinătatea Mării Negre.`;
+  if (kind === 'sport') return `${sentence}, potrivit ${sourceName}. Pentru suporteri, informația contează prin programul echipei, lotul care intră în pregătire și următoarele meciuri.`;
+  if (kind === 'weather') return `${sentence}, potrivit ${sourceName}. Informația este relevantă pentru cei care circulă, pentru autorități locale și pentru oamenii din zonele unde vremea poate produce probleme.`;
+  if (kind === 'incident') return `${sentence}, potrivit ${sourceName}. Cazul contează prin reacția autorităților, starea persoanelor implicate și eventualele măsuri de protecție sau anchetă.`;
+  return `${sentence}, potrivit ${sourceName}. Pentru cititori, partea importantă este efectul concret al informației și felul în care subiectul poate schimba o decizie, un cost, o procedură sau un calendar public.`;
 }
 
 function buildPublishableMainSection(topic, sources) {
   const main = sources[0] || {};
   const second = sources[1] || null;
   const detail = firstUsefulDetail(topic, sources) || cleanupForArticle(topic.title || '');
-  const link = main.url ? `[${main.name}](${main.url})` : (main.name || 'sursa citată');
+  const name = cleanPublisherName(main);
+  const link = main.url ? `[${name}](${main.url})` : name || 'sursa citată';
   let text = `Conform ${link}, ${lowercaseFirstForArticle(detail)}.`;
   if (second) {
+    const secondName = cleanPublisherName(second);
     const secondDetail = cleanupForArticle(second.description || second.title || '');
-    const secondLink = second.url ? `[${second.name}](${second.url})` : second.name;
-    text += ` Informația apare și în ${secondLink}`;
-    if (secondDetail && !sameNormalized(secondDetail, detail)) text += `, unde este menționat că ${lowercaseFirstForArticle(shortenForArticle(secondDetail, 220))}`;
-    text += `.`;
+    const secondLink = second.url ? `[${secondName}](${second.url})` : secondName;
+    if (secondDetail && !sameNormalized(secondDetail, detail)) text += ` ${secondLink} notează și că ${lowercaseFirstForArticle(shortenForArticle(secondDetail, 230))}.`;
+    else text += ` Informația este relatată și de ${secondLink}.`;
   }
   return text;
 }
 
 function buildPublishableImpactSection(topic, sources) {
-  const text = normalize(`${topic.title || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')}`);
-  if (/tomac|guvern|premier|ministr|coalitie|parlament|pnl|psd|usr|aur|presedint|nicusor|grindeanu/.test(text)) return 'Pentru public, discuția contează pentru că negocierile politice nu rămân doar în interiorul partidelor. Ele pot decide cine conduce Guvernul, ce proiecte ajung pe masa Parlamentului și cât de repede sunt luate decizii care afectează administrația, economia și serviciile publice.';
-  if (/notar|impozit|prejudiciu|parchet|judecat|dosar/.test(text)) return 'Pentru cititori, cazul contează prin suma anunțată și prin felul în care statul recuperează sau nu banii datorați. În același timp, trimiterea în judecată este o etapă a procesului, nu o condamnare, iar acest lucru trebuie să fie clar în text.';
-  if (/alimente|adaos|plafon|pret|preturi/.test(text)) return 'Pentru români, efectul se vede la raft și în bugetul familiei. O astfel de măsură poate ține temporar prețurile sub control, dar ridică și întrebări despre magazine, furnizori, controale și perioada în care plafonarea rămâne valabilă.';
-  if (/robor|banca|bnr|concurenta|credit|rate/.test(text)) return 'Pentru cei cu credite, orice discuție despre ROBOR, concurență bancară sau dobânzi are efect direct în rate și în încrederea în piața financiară. Partea importantă este dacă vorbim despre reguli încălcate, despre sancțiuni posibile sau despre explicații pe care clienții le așteaptă de la instituții.';
-  if (/ucraina|rusia|nato|patriot|marea neagra|moldova/.test(text)) return 'Pentru România, subiectul nu este doar extern. Războiul din Ucraina, deciziile NATO și tensiunile din regiune influențează securitatea Mării Negre, bugetele de apărare, relațiile diplomatice și felul în care Bucureștiul își definește poziția în estul Europei.';
-  if (/cfr cluj|fcsb|rapid|dinamo|craiova|fotbal|cantonament|transfer/.test(text)) return 'Pentru suporteri, detaliile despre reunire, cantonament și lot arată cum se pregătește echipa pentru următoarea parte a sezonului. Programul de pregătire poate influența transferurile, meciurile amicale și primele decizii ale staffului tehnic.';
-  if (/meteo|anm|cod|furtuni|ploi|canicula/.test(text)) return 'Pentru cititori, informația utilă este unde se schimbă vremea, în ce interval și ce riscuri apar pentru drumuri, locuințe, școli sau evenimente. Un cod meteo nu este doar o avertizare, ci o decizie de organizare pentru oamenii din zonele vizate.';
-  if (/injunghiat|crima|omor|violenta|accident|incendiu/.test(text)) return 'Pentru public, cazul contează prin siguranță, reacția autorităților și protecția persoanelor vulnerabile. O astfel de știre trebuie să arate ce s-a întâmplat, ce măsuri au fost luate și ce informații sunt deja confirmate.';
-  return 'Pentru cititori, partea importantă este efectul practic al informației: cine este vizat, ce se schimbă și ce decizie poate urma. Un material util nu repetă titlul, ci explică legătura dintre eveniment și viața oamenilor.';
+  const kind = detectTopicKind(topic);
+  if (kind === 'jobs') return 'Pentru cei care caută un job, numărul total de posturi este doar începutul. Contează județul, meseria cerută, salariul, experiența solicitată și cât de repede se actualizează oferta. Pentru angajatori, datele ANOFM arată și unde piața muncii are deficit de oameni.';
+  if (kind === 'agri') return 'Pentru România, datoriile fermierilor nu sunt doar o problemă a companiilor agricole. Ele pot influența investițiile în culturi, costul producției, accesul la utilaje și, în lanț, prețurile alimentelor. Când creditul devine mai scump sau mai greu de dus, presiunea se vede în ferme și în piață.';
+  if (kind === 'fraud_public_money') return 'Pentru cititori, cazul este despre controlul banilor publici. Ajutorul pentru refugiați a fost o măsură sensibilă, iar suspiciunile de documente false ridică întrebări despre verificări, recuperarea prejudiciului și protejarea celor care chiar aveau nevoie de sprijin.';
+  if (kind === 'banking') return 'Pentru românii cu rate, orice anchetă sau acuzație legată de ROBOR și bănci are efect direct în încrederea în piață. Întrebarea reală este dacă regulile au fost respectate și dacă oamenii au primit explicații clare despre costul creditelor.';
+  if (kind === 'legal_tax') return 'Pentru contribuabili, un astfel de dosar contează prin suma anunțată și prin felul în care statul recuperează banii datorați. În același timp, trimiterea în judecată este o etapă a procesului, nu o condamnare definitivă.';
+  if (kind === 'politics') return 'Pentru public, negocierile politice nu sunt doar dispute între lideri. Ele decid cine ajunge să conducă ministere, ce proiecte intră pe agenda Guvernului și cât de stabilă poate fi următoarea majoritate.';
+  if (kind === 'food_prices') return 'Pentru români, efectul se vede în coșul zilnic. Plafonarea poate tempera unele scumpiri, dar ridică întrebări despre lista produselor, marjele comerciale, controale și presiunea pusă pe retaileri sau furnizori.';
+  if (kind === 'external') return 'Pentru România, subiectele externe din regiune nu rămân la distanță. Ele pot influența securitatea Mării Negre, deciziile UE și NATO, bugetele de apărare, transporturile sau poziția diplomatică a Bucureștiului.';
+  if (kind === 'sport') return 'Pentru suporteri, detaliile despre reunire, cantonament și lot arată cum se pregătește echipa pentru sezon. Programul de pregătire poate indica transferuri, absențe, meciuri amicale și primele opțiuni ale staffului.';
+  if (kind === 'weather') return 'Pentru public, informația utilă este unde, când și cât de puternic se schimbă vremea. Un cod meteo poate afecta drumuri, gospodării, școli, evenimente în aer liber sau activitatea fermierilor.';
+  if (kind === 'incident') return 'Pentru oameni, astfel de cazuri ridică întrebări despre siguranță, intervenția autorităților și protecția victimelor. Textul trebuie să se concentreze pe date confirmate și pe măsurile anunțate, nu pe detalii spectaculoase.';
+  return 'Subiectul contează în măsura în care schimbă ceva concret pentru oameni: bani, timp, siguranță, servicii publice, drepturi sau decizii politice. De aici trebuie pornită explicația pentru cititor.';
 }
 
 function buildPublishableShortBox(topic, sources) {
-  const first = firstUsefulDetail(topic, sources) || cleanupForArticle(topic.title || '');
-  const sourceNames = sources.map((s) => s.name).filter(Boolean).slice(0, 2).join(' și ') || 'sursa citată';
-  return `${first}. Informația este atribuită ${sourceNames}. Partea importantă pentru cititori este efectul concret al deciziei, anchetei sau declarației, în funcție de domeniul subiectului.`;
+  const kind = detectTopicKind(topic);
+  const sourceNames = sources.map((s) => cleanPublisherName(s)).filter(Boolean).slice(0, 2).join(' și ') || 'sursa citată';
+  if (kind === 'jobs') return `ANOFM anunță aproape 34.000 de locuri de muncă disponibile, potrivit ${sourceNames}. Cei interesați trebuie să verifice oferta pe județ, domeniu și condițiile cerute de angajator.`;
+  if (kind === 'agri') return `Agricover indică o structură a datoriilor fermierilor împărțită între finanțări pe termen mediu și credite legate de ciclul de cultură. Pentru agricultură, costul finanțării rămâne una dintre problemele de fond.`;
+  if (kind === 'fraud_public_money') return `Ancheta vizează bani obținuți pe baza unor documente despre găzduirea refugiaților ucraineni, potrivit ${sourceNames}. Cazul trebuie urmărit prin prejudiciu, acuzații și eventualele măsuri de recuperare.`;
+  if (kind === 'legal_tax') return `Informația este atribuită ${sourceNames}. Pentru articol contează suma indicată, instituția care a făcut anunțul și stadiul exact al dosarului.`;
+  if (kind === 'politics') return `Declarația poate schimba calculele dintre partide. Pentru cititori contează dacă este doar poziționare publică sau un pas real în negocieri.`;
+  if (kind === 'food_prices') return `Măsura vizează alimentele de bază și perioada de aplicare. Pentru cumpărători contează lista produselor și efectul la raft.`;
+  return `${shortenForArticle(firstUsefulDetail(topic, sources) || topic.title || '', 220)}. Informația este atribuită ${sourceNames}.`;
 }
 
 function buildPublishableNextH2(topic) {
-  const text = normalize(`${topic.title || ''} ${(topic.keywords || []).join(' ')}`);
-  if (/tomac|guvern|premier|ministr|coalitie|parlament|pnl|psd|usr|aur|presedint|nicusor|grindeanu/.test(text)) return 'Negocierile politice și pasul care poate schimba calculele';
-  if (/notar|impozit|prejudiciu|parchet|judecat|dosar/.test(text)) return 'Etapa următoare în dosar și recuperarea prejudiciului';
-  if (/alimente|adaos|plafon|pret|preturi/.test(text)) return 'Când se vede efectul la raft și cine verifică magazinele';
-  if (/robor|banca|bnr|concurenta|credit|rate/.test(text)) return 'Ce pot afla clienții băncilor după ancheta de concurență';
-  if (/ucraina|rusia|nato|patriot|marea neagra|moldova/.test(text)) return 'Deciziile care pot schimba situația în regiune';
-  if (/cfr cluj|fcsb|rapid|dinamo|craiova|fotbal|cantonament|transfer/.test(text)) return 'Programul echipei până la următoarele meciuri';
-  return 'Ce poate urma după această informație';
+  const kind = detectTopicKind(topic);
+  if (kind === 'jobs') return 'Unde se verifică posturile și ce contează la angajare';
+  if (kind === 'agri') return 'Costul creditelor și următorul ciclu agricol';
+  if (kind === 'fraud_public_money') return 'Recuperarea prejudiciului și pașii din anchetă';
+  if (kind === 'banking') return 'Ce pot afla clienții băncilor după anchetă';
+  if (kind === 'legal_tax') return 'Etapa următoare în dosar și recuperarea prejudiciului';
+  if (kind === 'politics') return 'Negocierile politice și următorul pas';
+  if (kind === 'food_prices') return 'Când se vede efectul la raft';
+  if (kind === 'external') return 'Deciziile care pot schimba situația în regiune';
+  if (kind === 'sport') return 'Programul echipei până la următoarele meciuri';
+  if (kind === 'weather') return 'Intervalul în care avertizarea rămâne importantă';
+  if (kind === 'incident') return 'Ancheta și măsurile anunțate de autorități';
+  return 'Ce se poate schimba în următoarele zile';
 }
 
 function buildPublishableNextSection(topic, sources) {
-  const text = normalize(`${topic.title || ''} ${(topic.keywords || []).join(' ')}`);
-  if (/tomac|guvern|premier|ministr|coalitie|parlament|pnl|psd|usr|aur|presedint|nicusor|grindeanu/.test(text)) return 'Următoarele ore pot aduce reacții din partea partidelor vizate și clarificări privind numele propuse pentru funcții. Dacă negocierile se schimbă, se schimbă și calendarul politic al unei eventuale majorități.';
-  if (/notar|impozit|prejudiciu|parchet|judecat|dosar/.test(text)) return 'Dosarul merge mai departe în instanță, unde vor conta probele, poziția apărării și eventualele măsuri pentru recuperarea prejudiciului. Pentru public, diferența importantă este între acuzațiile anunțate și o hotărâre definitivă.';
-  if (/alimente|adaos|plafon|pret|preturi/.test(text)) return 'Aplicarea măsurii va fi urmărită în magazine și în controalele instituțiilor responsabile. Pentru cumpărători, întrebarea rămâne dacă plafonarea se vede în prețul final și cât timp poate fi menținută.';
-  if (/robor|banca|bnr|concurenta|credit|rate/.test(text)) return 'În perioada următoare sunt importante concluziile instituțiilor de control și eventualele reacții ale băncilor. Pentru clienți, partea practică este dacă ancheta schimbă transparența dobânzilor sau modul în care sunt explicate costurile creditelor.';
-  if (/ucraina|rusia|nato|patriot|marea neagra|moldova/.test(text)) return 'Evoluția depinde de reacțiile oficiale și de deciziile militare sau diplomatice ale actorilor implicați. Pentru România, fiecare schimbare din regiune contează prin securitate, buget și poziționare în NATO și UE.';
-  if (/cfr cluj|fcsb|rapid|dinamo|craiova|fotbal|cantonament|transfer/.test(text)) return 'Următorul reper este confirmarea programului complet al cantonamentului și a meciurilor amicale. Lotul prezent la reunire poate arăta ce poziții mai caută clubul și ce jucători intră în planurile staffului.';
-  return 'În perioada următoare contează reacțiile directe, deciziile instituțiilor implicate și efectul practic pentru oamenii vizați. Articolul poate fi actualizat dacă apar date noi, declarații sau documente publice.';
+  const kind = detectTopicKind(topic);
+  if (kind === 'jobs') return 'Cei care caută un loc de muncă trebuie să urmărească oferta actualizată a agențiilor județene, condițiile cerute de angajatori și termenul până la care posturile rămân active. Numărul total poate arăta tendința, dar decizia se ia la nivel de meserie și județ.';
+  if (kind === 'agri') return 'Următorul reper pentru fermieri este finanțarea următorului ciclu de cultură: semințe, inputuri, utilaje, irigații și rambursarea creditelor existente. Dacă presiunea datoriilor crește, efectul se poate vedea în investiții și în capacitatea fermelor de a rămâne competitive.';
+  if (kind === 'fraud_public_money') return 'Ancheta poate aduce noi date despre valoarea prejudiciului, persoanele implicate și modul în care au fost verificate documentele. Pentru public, întrebarea importantă este dacă banii pot fi recuperați și dacă regulile de control vor fi întărite.';
+  if (kind === 'banking') return 'Următoarele clarificări pot veni de la instituțiile de control, bănci sau instanțe. Pentru clienți, partea practică este dacă apar explicații mai clare despre dobânzi, contracte și costurile creditelor.';
+  if (kind === 'legal_tax') return 'Dosarul merge mai departe în instanță, unde vor conta probele, poziția apărării și eventualele măsuri pentru recuperarea prejudiciului. Până la o decizie definitivă, acuzațiile trebuie prezentate ca acuzații, nu ca fapte stabilite de instanță.';
+  if (kind === 'politics') return 'Următoarele reacții ale partidelor pot arăta dacă declarația rămâne o tactică de negociere sau devine o schimbare reală de poziție. Pentru public, efectul se vede în stabilitatea guvernării și în calendarul deciziilor publice.';
+  if (kind === 'food_prices') return 'Aplicarea măsurii va fi urmărită în magazine și în controalele instituțiilor responsabile. Pentru cumpărători contează dacă plafonarea se vede în prețul final și cât timp poate fi menținută.';
+  if (kind === 'external') return 'Evoluția depinde de reacțiile oficiale și de deciziile militare sau diplomatice ale actorilor implicați. Pentru România, fiecare schimbare din regiune contează prin securitate, buget și poziționare în NATO și UE.';
+  if (kind === 'sport') return 'Următorul reper este confirmarea programului complet al cantonamentului și a meciurilor amicale. Lotul prezent la reunire poate arăta ce poziții mai caută clubul și ce jucători intră în planurile staffului.';
+  if (kind === 'weather') return 'Avertizările meteo se pot actualiza rapid, în funcție de evoluția frontului atmosferic. Pentru cei afectați contează ora de început, ora de final și recomandările transmise de autorități.';
+  if (kind === 'incident') return 'Următoarele informații importante țin de starea victimei, măsurile luate față de suspect și comunicatul oficial al anchetatorilor. Dacă apar date despre sesizări anterioare, acestea pot schimba contextul cazului.';
+  return 'Următoarele zile pot aduce reacții, documente sau decizii care schimbă efectul practic al subiectului pentru public.';
 }
 
 function getCleanSources(topic) {
@@ -1377,136 +1405,185 @@ function buildSeoHeadline(topic) {
 }
 
 function buildSeoTitleIdeas(topic) {
-  const base = shortenTitleForSeo((topic.seoTitle || topic.title || '').replace(/[.!?]+$/, ''));
-  const text = normalize(`${topic.title || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')}`);
-  const focus = buildFocusKeyword(topic);
-  let titles;
+  const kind = detectTopicKind(topic);
+  const title = cleanupForArticle(topic.title || topic.seoTitle || '');
+  const entities = (topic.entities || []).filter(Boolean);
+  const mainEntity = entities[0] || sentenceCase(buildFocusKeyword(topic));
+  let titles = [];
 
-  if (/plafon|alimente|adaos|pret|preturi|facturi|tva|taxe|impozit|anaf|pensii|salarii/.test(text)) {
-    titles = [
-      `${base}. Ce se schimbă pentru români`,
-      `${base}: lista, termenul și efectul la raft`,
-      `Prețuri plafonate la alimente: ce produse sunt vizate și până când se aplică măsura`,
-      `Adaos comercial plafonat până la finalul anului. Ce trebuie să știe cumpărătorii`,
-      `${base}: cine controlează măsura și ce riscă magazinele`
-    ];
-  } else if (/guvern|parlament|pnl|psd|usr|aur|premier|ministru|alegeri|nicusor|simion|grindeanu|tomac|kovesi|epplo|pnrr/.test(text)) {
-    titles = [
-      `${base}. Efectul politic și ce urmează`,
-      `${base}: cine este vizat și ce schimbă declarația`,
-      `${base}. Contextul din spatele conflictului politic`,
-      `${base}: reacții, instituții și următorul pas`,
-      `${base}. Ce trebuie verificat înainte de publicare`
-    ];
-  } else if (/ucraina|rusia|nato|ue|moldova|sua|iran|bulgaria|italia/.test(text)) {
-    titles = [
-      `${base}. De ce contează pentru România`,
-      `${base}: legătura cu UE, NATO și regiunea`,
-      `${base}. Ce se schimbă în relațiile externe`,
-      `${base}: ce înseamnă decizia pentru flancul estic`,
-      `${base}. Reacțiile și documentele care trebuie urmărite`
-    ];
-  } else if (/meteo|anm|cod galben|cod portocaliu|furtuni|vreme|canicula|ninsoare/.test(text)) {
-    titles = [
-      `${base}. Zonele vizate și intervalul anunțat`,
-      `${base}: județele afectate și riscurile pentru populație`,
-      `Cod meteo în România: unde sunt așteptate furtuni și până când este valabilă avertizarea`,
-      `${base}. Ce trebuie să știe șoferii și locuitorii din zonele afectate`,
-      `${base}: harta avertizărilor și recomandările autorităților`
-    ];
-  } else if (/notar|parchet|procuror|judecat|instanta|dosar|ancheta|condamn/.test(text)) {
-    titles = [
-      `${base}. Prejudiciul anunțat și stadiul dosarului`,
-      `${base}: ce spun procurorii și ce trebuie verificat`,
-      `${base}. Acuzațiile, suma și prezumția de nevinovăție`,
-      `${base}: ce urmează în instanță`,
-      `${base}. De ce cazul contează pentru contribuabili`
-    ];
-  } else if (/injunghiat|crima|omor|amenintat|violenta|politia|isu|accident|incendiu/.test(text)) {
-    titles = [
-      `${base}. Ce au transmis autoritățile`,
-      `${base}: victima, suspectul și primele date din anchetă`,
-      `${base}. Ce se știe despre incident și ce trebuie confirmat`,
-      `${base}: ancheta și măsurile anunțate`,
-      `${base}. Întrebările la care trebuie să răspundă autoritățile`
-    ];
-  } else {
-    titles = [
-      `${base}. Ce se știe și ce trebuie verificat`,
-      `${base}: contextul și următorul pas`,
-      `${base}. Cine este afectat și ce informații lipsesc`,
-      `${base}: datele confirmate până acum`,
-      `${base}. Ce trebuie urmărit în următoarele ore`
-    ];
-  }
+  if (kind === 'jobs') titles = [
+    'Aproape 34.000 de locuri de muncă în România. Ce trebuie să verifice cei care caută un job',
+    'Locuri de muncă ANOFM în toată țara. Unde se caută angajați și ce contează pentru candidați',
+    'Românii care vor să se angajeze au mii de posturi disponibile. Cum se verifică oferta ANOFM',
+    'Piața muncii în România: aproape 34.000 de posturi libere și diferențe mari între județe',
+    'Joburi disponibile prin ANOFM. Ce trebuie să știe candidații înainte să aplice',
+    'Unde sunt locurile de muncă anunțate de ANOFM și ce domenii pot avea nevoie de oameni'
+  ];
+  else if (kind === 'agri') titles = [
+    'Fermierii români și presiunea datoriilor. Ce arată datele Agricover despre creditele agricole',
+    'Cât de îndatorați sunt fermierii români și de ce contează pentru prețurile alimentelor',
+    'Creditele fermierilor, între ciclul de cultură și investițiile pe termen mediu',
+    'Agricultura românească depinde tot mai mult de finanțare. Ce spune Agricover despre datorii',
+    'Datoriile din agricultură și riscul pentru următorul ciclu de cultură',
+    'De ce creditele fermierilor pot ajunge să conteze și pentru consumatori'
+  ];
+  else if (kind === 'fraud_public_money') titles = [
+    'Bani pentru refugiați ucraineni, obținuți cu documente false. Ce anchetează procurorii',
+    'Caz Jupiter în Maramureș: sute de mii de lei pentru găzduirea refugiaților, sub lupa anchetatorilor',
+    'Documente false pentru bani publici. Cum este descris dosarul privind refugiații ucraineni',
+    'Anchetă penală după plăți pentru refugiați ucraineni. Ce prejudiciu este verificat',
+    'Sprijinul pentru refugiați și controalele statului. Ce arată cazul din Maramureș',
+    'Dosar cu bani publici și refugiați ucraineni. Ce trebuie urmărit în anchetă'
+  ];
+  else if (kind === 'banking') titles = [
+    'ROBOR, bănci și concurență. Ce trebuie să știe românii cu rate',
+    'Ancheta privind băncile și ROBOR: unde este problema pentru clienți',
+    'Ratele românilor și regulile de concurență. Ce se discută în cazul băncilor',
+    'Ce pot afla clienții după acuzațiile legate de manipularea ROBOR',
+    'Consiliul Concurenței și băncile. De ce contează dosarul pentru credite',
+    'Costul creditelor și încrederea în piața bancară: ce întrebări ridică ancheta'
+  ];
+  else if (kind === 'politics') titles = [
+    `${mainEntity} și negocierile politice. Ce se poate schimba după noul anunț`,
+    `Schimbare de poziție în negocieri. Cine poate câștiga timp și cine pierde teren`,
+    `Numele de miniștri, între presiune politică și compromis. Ce urmează pentru partide`,
+    `De ce declarația lui ${mainEntity} poate schimba calculele pentru viitorul Guvern`,
+    `Negocierile pentru putere intră într-o nouă etapă. Ce semnal transmite ${mainEntity}`,
+    `Partidele caută nume acceptate de toți. Ce ascunde disputa din jurul miniștrilor`
+  ];
+  else if (kind === 'legal_tax') titles = [
+    'Notar trimis în judecată pentru impozite neplătite. Prejudiciul anunțat de anchetatori',
+    'Dosar de aproape 1,5 milioane de euro. Ce acuzații apar în cazul notarului din București',
+    'Impozite nevirate la stat și tranzacții imobiliare. De ce contează dosarul notarului',
+    'Bani care trebuiau să ajungă la buget. Ce urmează după trimiterea în judecată',
+    'Cazul notarului din Capitală: prejudiciu, acuzații și prezumția de nevinovăție',
+    'Dosar fiscal cu miză publică: ce spun procurorii despre impozitele neplătite'
+  ];
+  else if (kind === 'food_prices') titles = [
+    'Adaos comercial plafonat la alimente. Ce produse și ce termen contează pentru cumpărători',
+    'Alimentele de bază rămân cu prețuri plafonate. Ce se schimbă la raft',
+    'Plafonarea adaosului comercial, prelungită. Cine verifică magazinele și ce urmăresc cumpărătorii',
+    'Coșul zilnic și plafonarea prețurilor. Ce trebuie să știe românii până la finalul anului',
+    'Lista alimentelor cu adaos plafonat. Ce produse rămân în măsură',
+    'Prețurile la alimente și decizia Parlamentului. Ce efect poate avea pentru familii'
+  ];
+  else if (kind === 'external') titles = [
+    `${mainEntity} și deciziile din regiune. De ce contează pentru România`,
+    `Schimbare externă cu efect regional. Ce legătură are România cu subiectul`,
+    `UE, NATO și vecinătatea României: ce trebuie urmărit după noul anunț`,
+    `Decizia care poate influența flancul estic. Unde intră România în ecuație`,
+    `Securitatea regională și efectul pentru România. Ce apare în sursele externe`,
+    `De ce subiectul extern nu este doar o știre de peste graniță`
+  ];
+  else if (kind === 'sport') titles = [
+    `${mainEntity}: programul de pregătire și primele semne pentru noul sezon`,
+    `Reunirea echipei și cantonamentul: ce urmează pentru lot`,
+    `Cum se pregătește ${mainEntity} pentru sezon. Datele care contează pentru suporteri`,
+    `Cantonament, lot și meciuri amicale. Ce trebuie urmărit la ${mainEntity}`,
+    `Primele decizii după reunire. Ce arată programul echipei`,
+    `Suporterii află primele repere ale pregătirii: unde merge echipa și cine intră în lot`
+  ];
+  else titles = [
+    `${title}. Ce se știe acum și cine este afectat`,
+    `${mainEntity}: detaliul care schimbă lectura subiectului`,
+    `Ce înseamnă subiectul pentru public și ce date contează`,
+    `Informația nouă din surse și efectul pentru cititori`,
+    `Contextul care lipsește din primele relatări despre ${mainEntity}`,
+    `Ce poate urma după anunțul care îl vizează pe ${mainEntity}`
+  ];
 
-  titles.push(`${sentenceCase(focus)}: expresia pe care se poate indexa articolul`);
-  return Array.from(new Set(titles.map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean))).slice(0, 6);
+  return Array.from(new Set(titles.map((t) => shortenTitleForSeo(t).replace(/\s+/g, ' ').trim()).filter(Boolean))).slice(0, 6);
 }
 
 function buildSeoH2Recommendations(topic) {
+  const kind = detectTopicKind(topic);
   const base = shortenTitleForSeo((topic.title || topic.seoTitle || '').replace(/[.!?]+$/, ''));
-  const text = normalize(`${topic.title || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')}`);
-  const h2 = [];
-
-  if (/plafon|alimente|adaos|pret|preturi|facturi|tva|taxe|impozit|anaf|pensii|salarii/.test(text)) {
-    h2.push(
-      `Alimentele cu adaos comercial plafonat: ce a decis Parlamentul`,
-      `Lista produselor cu prețuri plafonate și termenul până la care se aplică măsura`,
-      `Cum se vede plafonarea adaosului comercial la raft și în bugetul familiei`,
-      `Ce magazine sunt vizate și cine poate verifica respectarea regulilor`,
-      `Ce document oficial trebuie citat înainte de publicare`
-    );
-  } else if (/grindeanu|tomac|pnl|psd|usr|aur|guvern|parlament|premier|ministru|alegeri|nicusor|simion|kovesi|epplo|pnrr/.test(text)) {
-    h2.push(
-      `${base}: declarația care a declanșat disputa politică`,
-      `Negocierile pentru Guvern și presiunea pusă pe partide`,
-      `Cine este vizat de mesaj și ce poate urma în coaliție`,
-      `Reacțiile care trebuie urmărite în următoarele ore`,
-      `Ce documente sau poziții oficiale trebuie verificate`
-    );
-  } else if (/ucraina|rusia|nato|ue|moldova|sua|iran|bulgaria|italia/.test(text)) {
-    h2.push(
-      `${base}: decizia care schimbă discuția externă`,
-      `Legătura cu România, UE și securitatea din regiune`,
-      `Ce spun sursele internaționale și ce rămâne de confirmat`,
-      `De ce contează subiectul pentru flancul estic`,
-      `Ce reacții trebuie urmărite la Bruxelles, NATO sau în capitalele implicate`
-    );
-  } else if (/meteo|anm|cod galben|cod portocaliu|furtuni|vreme|canicula|ninsoare/.test(text)) {
-    h2.push(
-      `Cod meteo în România: zonele vizate de avertizare`,
-      `Intervalul în care sunt așteptate ploi, vijelii sau grindină`,
-      `Ce trebuie să știe șoferii și locuitorii din județele afectate`,
-      `Recomandările autorităților în timpul avertizării ANM`,
-      `Când ar putea fi actualizată harta meteo`
-    );
-  } else if (/notar|parchet|procuror|judecat|instanta|dosar|ancheta|condamn/.test(text)) {
-    h2.push(
-      `${base}: acuzațiile și prejudiciul anunțat de procurori`,
-      `Ce impozite ar fi trebuit plătite la bugetul de stat`,
-      `Stadiul dosarului și ce înseamnă trimiterea în judecată`,
-      `De ce cazul contează pentru contribuabili și tranzacții imobiliare`,
-      `Ce trebuie verificat în comunicatul Parchetului sau al instanței`
-    );
-  } else if (/injunghiat|crima|omor|amenintat|violenta|politia|isu|accident|incendiu/.test(text)) {
-    h2.push(
+  const sets = {
+    jobs: [
+      'Locuri de muncă disponibile prin ANOFM: ce arată oferta națională',
+      'Unde trebuie să caute cei care vor să se angajeze acum',
+      'Ce domenii pot avea nevoie de oameni și ce verifică un candidat',
+      'De ce numărul posturilor libere diferă de la un județ la altul',
+      'Ce pași trebuie făcuți înainte de aplicare'
+    ],
+    agri: [
+      'Datoriile fermierilor români și presiunea pe următorul ciclu agricol',
+      'Credite pe termen mediu și finanțarea culturilor: ce spune Agricover',
+      'De ce costul finanțării poate influența producția agricolă',
+      'Cum se poate vedea presiunea din ferme în prețurile alimentelor',
+      'Ce urmăresc fermierii înainte de următoarea campanie agricolă'
+    ],
+    fraud_public_money: [
+      'Documente false pentru bani publici: ce anchetează procurorii',
+      'Cum funcționa sprijinul pentru găzduirea refugiaților ucraineni',
+      'Prejudiciul anunțat și recuperarea banilor',
+      'De ce cazul ridică întrebări despre verificarea plăților',
+      'Ce urmează în dosarul din Maramureș'
+    ],
+    banking: [
+      'ROBOR și ancheta privind băncile: ce este important pentru clienți',
+      'Ce reguli de concurență sunt în discuție',
+      'Cum pot fi afectați românii cu rate',
+      'Consiliul Concurenței, BNR și limitele fiecărei instituții',
+      'Ce reacții trebuie urmărite din partea băncilor'
+    ],
+    politics: [
+      `${base}: declarația care schimbă negocierile politice`,
+      'Numele de miniștri și presiunea pentru un compromis',
+      'Ce partide sunt vizate și ce poate urma la negocieri',
+      'Cum se poate schimba calendarul unei majorități',
+      'Ce reacții politice pot confirma noua linie'
+    ],
+    legal_tax: [
+      `${base}: acuzațiile și prejudiciul anunțat`,
+      'Ce impozite ar fi trebuit virate la buget',
+      'Stadiul dosarului și prezumția de nevinovăție',
+      'De ce cazul contează pentru contribuabili',
+      'Ce se poate întâmpla în instanță'
+    ],
+    food_prices: [
+      'Alimentele cu adaos comercial plafonat: ce se schimbă pentru cumpărători',
+      'Lista produselor vizate și termenul până la care se aplică măsura',
+      'Cum se vede plafonarea la raft și în bugetul familiei',
+      'Cine controlează magazinele și ce riscă retailerii',
+      'Ce efect poate avea decizia asupra prețurilor'
+    ],
+    external: [
+      `${base}: decizia care contează în regiune`,
+      'Legătura cu România, UE și NATO',
+      'Ce se schimbă pentru securitatea din zona Mării Negre',
+      'Reacțiile care trebuie urmărite în capitalele implicate',
+      'De ce subiectul extern are efect pentru România'
+    ],
+    sport: [
+      `${base}: programul de pregătire`,
+      'Cantonamentul și meciurile amicale care trebuie confirmate',
+      'Ce jucători intră în planurile staffului',
+      'De ce reunirea contează pentru suporteri',
+      'Ce poate urma pe piața transferurilor'
+    ],
+    weather: [
+      'Cod meteo în România: zonele vizate de avertizare',
+      'Intervalul în care sunt așteptate fenomenele severe',
+      'Ce trebuie să știe șoferii și locuitorii din județele afectate',
+      'Recomandările autorităților în timpul avertizării',
+      'Când poate fi actualizată harta ANM'
+    ],
+    incident: [
       `${base}: primele informații despre victimă și suspect`,
-      `Ce spun autoritățile despre atac și amenințările anterioare`,
-      `Ancheta Poliției și măsurile luate după incident`,
-      `De ce cazul ridică întrebări despre protecția victimelor`,
-      `Ce detalii trebuie confirmate înainte de publicare`
-    );
-  } else {
-    h2.push(
-      `${base}: informațiile confirmate până acum`,
-      `Contextul care lipsește din primele relatări`,
-      `Cine este afectat de această decizie sau situație`,
-      `Ce trebuie verificat în sursele oficiale`,
-      `Ce se poate întâmpla în următoarele ore`
-    );
-  }
-
+      'Ce spun autoritățile despre incident',
+      'Ancheta și măsurile luate după atac',
+      'De ce cazul ridică întrebări despre protecția victimelor',
+      'Ce date trebuie tratate cu prudență'
+    ]
+  };
+  const h2 = sets[kind] || [
+    `${base}: informația nouă din surse`,
+    'Cine este afectat și de ce contează subiectul',
+    'Contextul care lipsește din primele relatări',
+    'Ce se poate schimba în următoarele zile',
+    'Datele care trebuie urmărite pentru actualizare'
+  ];
   return Array.from(new Set(h2.map((item) => item.replace(/\s+/g, ' ').trim()).filter(Boolean))).slice(0, 6);
 }
 
