@@ -522,7 +522,6 @@ function showBrief(topic) {
     <h3>${escapeHtml(topic.seoTitle || topic.title)}</h3>
     <div class="editorial-box">
       <p><strong>Unghi:</strong> ${escapeHtml(buildOficiulAngle(topic))}</p>
-      <p><strong>Promisiunea titlului:</strong> explică nu doar ce s-a întâmplat, ci ce înseamnă pentru cititor.</p>
     </div>
 
     <h3>Rezumat rapid</h3>
@@ -669,16 +668,6 @@ function showLinksAndImages(topic) {
       <li>dacă subiectul există deja pe Oficiul de Știri, dar pe alt unghi.</li>
     </ul>
 
-    <h3>Checklist final pentru material</h3>
-    <ul>
-      <li>titlu clar, pe expresia pe care o caută oamenii;</li>
-      <li>șapou cu cine, ce, când și efectul pentru cititor;</li>
-      <li>minimum o sursă externă verificată și, unde se poate, o sursă oficială;</li>
-      <li>fără afirmații care nu apar în sursă sau în documente oficiale;</li>
-      <li>H2-uri concrete, pe subiect, nu intertitluri generice;</li>
-      <li>focus keyword fără diacritice și slug scurt;</li>
-      <li>poza se caută separat manual, doar din surse legale clare.</li>
-    </ul>
   `;
   openDialog();
 }
@@ -830,19 +819,12 @@ A. Verificare anti-duplicat
 B. Articol gata de copy-paste
 C. Pachet SEO complet
 D. Poze legale
-E. Checklist final
+E. Verificări finale scurte
 
-Checklist final:
-- Titlu clar?
-- Lead cu esența?
-- Exact 2 linkuri interne?
-- Exact 2 linkuri externe?
-- Poze relevante?
-- Taguri max 4?
-- Nu există duplicat?
-- Text sub 700 cuvinte?
-- Secțiune „Ce urmează”?
-- Element scanabil?`;
+Verificări finale:
+- Nu publica fără sursă verificată.
+- Nu dubla un articol deja publicat pe același unghi.
+- Nu inventa reacții, date sau citate.`;
 }
 
 function buildLocalCopyPasteDraft(topic) {
@@ -945,7 +927,7 @@ function buildArticleMainH2(topic) {
   if (/meteo|anm|cod galben|cod portocaliu|furtuni|vreme/.test(text)) return 'Zonele și intervalul vizate de avertizare';
   if (/guvern|parlament|lege|minister|ordonanta|vot/.test(text)) return 'Decizia anunțată și ce schimbă ea';
   if (/ucraina|rusia|nato|ue|moldova|iran|sua|bulgaria/.test(text)) return 'Ce s-a schimbat și de ce contează în regiune';
-  return 'Ce se știe până acum din sursele monitorizate';
+  return 'Ce informație nouă apare în sursele monitorizate';
 }
 
 function buildArticleMainSection(topic, sources) {
@@ -976,7 +958,7 @@ function buildArticleImpactH2(topic) {
   if (/notar|impozit|prejudiciu|parchet|dosar/.test(text)) return 'De ce contează pentru contribuabili și justiție';
   if (/meteo|vreme|cod|furtuni/.test(text)) return 'Ce trebuie să știe oamenii din zonele vizate';
   if (/ucraina|rusia|nato|ue|moldova/.test(text)) return 'Legătura cu România și cu regiunea';
-  return 'Ce înseamnă pentru cititor';
+  return 'Ce schimbă subiectul pentru publicul din România';
 }
 
 function buildArticleImpactSection(topic, sources) {
@@ -999,7 +981,7 @@ function buildArticleImpactSection(topic, sources) {
   if (/ucraina|rusia|nato|ue|moldova|sua|iran/.test(text)) {
     return 'Legătura cu România trebuie explicată clar: securitate regională, decizii ale UE sau NATO, energie, transporturi, diaspora ori presiune politică la granița estică. Fără această legătură, subiectul rămâne doar o preluare externă.';
   }
-  return 'Subiectul merită urmărit dacă poate schimba ceva concret pentru cititori: bani, siguranță, drepturi, servicii publice sau decizii politice. Textul final trebuie să adauge context, nu doar să repete titlul din flux.';
+  return `Partea importantă pentru cititori trebuie legată de informația concretă din surse, nu de faptul că subiectul este nou. Explică cine este vizat, ce se poate schimba în următoarele ore și ce confirmare oficială lipsește pentru ca articolul să nu fie doar o reluare a titlului.`;
 }
 
 function buildArticleShortBox(topic, sources) {
@@ -1247,14 +1229,40 @@ function buildShortSummary(topic) {
 }
 
 function buildOficiulAngle(topic) {
-  const interest = topic.interest || '';
-  if (interest === 'Economie/Bani') return 'Explică efectul în bani: rate, taxe, prețuri, facturi, salarii sau buget. Nu rămâne la declarație.';
-  if (interest === 'Politică') return 'Găsește miza politică reală: guvernare, voturi, negocieri, instituții, cost pentru public, nu doar omul din trend.';
-  if (interest === 'Sănătate') return 'Explică impactul pentru pacienți, spitale, programări, costuri și ce trebuie verificat oficial.';
-  if (interest === 'Educație') return 'Explică impactul pentru elevi și părinți: calendar, pași, greșeli de evitat, documente oficiale.';
-  if (interest === 'Social') return 'Transformă știrea în informație utilă: cine e afectat, ce trebuie să facă cititorul, ce se schimbă concret.';
-  if (interest === 'Externe relevante pentru români') return 'Explică obligatoriu legătura cu România: securitate, bani europeni, diaspora, UE/NATO, granița de est.';
-  return 'Nu face preluare seacă. Adu context, impact pentru cititor și ce urmează.';
+  const text = normalize(`${topic.title || ''} ${topic.summary || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')} ${(topic.sources || []).map((s) => `${s.title || ''} ${s.description || ''}`).join(' ')}`);
+  const sourceHint = firstUsefulDetail(topic, getCleanSources(topic).slice(0, 2));
+  if (/robor|banca|banci|consiliul concurentei|concurenta|dobanda|credit|rate/.test(text)) {
+    return 'Unghi diferit: nu relua doar declarația despre bănci, ci explică pentru cititor ce înseamnă ancheta pe ROBOR: dacă poate influența ratele, ce reguli de concurență sunt invocate și ce informații trebuie confirmate de Consiliul Concurenței.';
+  }
+  if (/notar|impozit|contributii|prejudiciu|parchet|trimis in judecata|evaziune/.test(text)) {
+    return 'Unghi diferit: scoate știrea din zona de dosar sec și explică traseul banilor publici: ce impozite ar fi trebuit virate, cine poate recupera prejudiciul și ce înseamnă trimiterea în judecată fără să transformi acuzația în verdict.';
+  }
+  if (/alimente|adaos|plafon|pret|preturi|retailer|magazin|lista produs/.test(text)) {
+    return 'Unghi diferit: nu scrie doar că plafonarea se prelungește, ci fă material util cu lista produselor, termenul exact, ce se schimbă la raft și ce riscă magazinele dacă nu respectă regula.';
+  }
+  if (/ucraina|rusia|nato|patriot|rachete|marea neagra|bulgaria|moldova|razboi/.test(text)) {
+    return 'Unghi diferit: explică legătura directă cu România — securitate regională, flanc estic, bani europeni sau poziția UE/NATO — ca subiectul să nu rămână o simplă preluare externă.';
+  }
+  if (/cfr cluj|fcsb|rapid|dinamo|craiova|fotbal|cantonament|transfer|meci|superliga/.test(text)) {
+    return 'Unghi diferit: fă material pentru suporteri, nu preluare de program: cine lipsește la reunire, ce se testează în cantonament, ce transferuri pot schimba primul 11 și care este primul termen important.';
+  }
+  if (/meteo|anm|cod galben|cod portocaliu|furtuna|ploi|vijelie|canicula|inundatii/.test(text)) {
+    return 'Unghi diferit: pune accent pe utilitate imediată — județe, interval, riscuri pentru trafic și gospodării, ce recomandă autoritățile și când se poate schimba avertizarea.';
+  }
+  if (/injunghiat|crima|omor|violenta|amenintar|victima|suspect|arest|retinut/.test(text)) {
+    return 'Unghi diferit: tratează cazul prin siguranța victimei și reacția autorităților: ce era cunoscut înainte, ce măsuri au fost luate și ce nu trebuie publicat fără confirmare oficială.';
+  }
+  if (/nicusor|grindeanu|tomac|ciolacu|simion|psd|pnl|usr|aur|udmr|guvern|premier|coalitie|parlament|motiune/.test(text)) {
+    return 'Unghi diferit: nu transforma declarația politică în stenogramă. Arată cine este presat, ce variantă instituțională rămâne pe masă, ce pas urmează și unde se vede efectul pentru guvernare.';
+  }
+  if (/bac|evaluare|scoala|elev|profesor|admitere|educatie|subiecte|barem/.test(text)) {
+    return 'Unghi diferit: fă ghid rapid pentru elevi și părinți: ce s-a publicat, unde se verifică oficial, ce termen urmează și ce greșeală de interpretare trebuie evitată.';
+  }
+  if (/sanatate|spital|medic|pacient|cnas|medicament|tratament/.test(text)) {
+    return 'Unghi diferit: explică efectul pentru pacienți: cine are acces, ce documente sau programări sunt necesare, de când se aplică și ce confirmare oficială lipsește.';
+  }
+  if (sourceHint) return `Unghi diferit: pornește de la detaliul verificabil „${shortenForArticle(sourceHint, 120)}” și explică ce schimbă concret pentru cititor, nu doar faptul că subiectul a apărut în flux.`;
+  return 'Unghi diferit: găsește elementul nou față de ce au publicat ceilalți — efect practic, document oficial, categorie afectată, termen sau reacție care lipsește din primele relatări.';
 }
 
 function inferAffectedPeople(topic) {
@@ -1292,70 +1300,95 @@ function buildSeoHeadline(topic) {
 }
 
 function buildSeoTitleIdeas(topic) {
-  const base = shortenTitleForSeo((topic.seoTitle || topic.title || '').replace(/[.!?]+$/, ''));
-  const text = normalize(`${topic.title || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')}`);
+  const rawTitle = cleanupForArticle(topic.seoTitle || topic.title || 'Subiect nou');
+  const base = shortenTitleForSeo(rawTitle);
+  const text = normalize(`${rawTitle} ${topic.interest || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')}`);
   const focus = buildFocusKeyword(topic);
-  let titles;
+  let titles = [];
 
-  if (/plafon|alimente|adaos|pret|preturi|facturi|tva|taxe|impozit|anaf|pensii|salarii/.test(text)) {
+  if (/robor|banca|banci|consiliul concurentei|concurenta|dobanda|credit|rate/.test(text)) {
     titles = [
-      `${base}. Ce se schimbă pentru români`,
-      `${base}: lista, termenul și efectul la raft`,
-      `Prețuri plafonate la alimente: ce produse sunt vizate și până când se aplică măsura`,
-      `Adaos comercial plafonat până la finalul anului. Ce trebuie să știe cumpărătorii`,
-      `${base}: cine controlează măsura și ce riscă magazinele`
+      'Ancheta ROBOR explicată: ce reguli ar fi încălcat băncile și ce contează pentru clienți',
+      'Băncile și perioada de fixing ROBOR. Întrebarea care contează pentru românii cu rate',
+      'Ce poate schimba ancheta Consiliului Concurenței pentru credite și dobânzi',
+      'ROBOR, bănci și reguli de concurență. Ce trebuie verificat înainte de concluzii',
+      'De ce cazul ROBOR nu este doar o dispută între bănci și autorități',
+      'Bogdan Chirițoiu și ancheta ROBOR: unde este partea importantă pentru consumatori'
     ];
-  } else if (/guvern|parlament|pnl|psd|usr|aur|premier|ministru|alegeri|nicusor|simion|grindeanu|tomac|kovesi|epplo|pnrr/.test(text)) {
+  } else if (/notar|impozit|contributii|prejudiciu|parchet|trimis in judecata|evaziune/.test(text)) {
     titles = [
-      `${base}. Efectul politic și ce urmează`,
-      `${base}: cine este vizat și ce schimbă declarația`,
-      `${base}. Contextul din spatele conflictului politic`,
-      `${base}: reacții, instituții și următorul pas`,
-      `${base}. Ce trebuie verificat înainte de publicare`
+      'Notar din București, trimis în judecată. Prejudiciul de 1,5 milioane de euro și ce trebuie verificat',
+      'Dosarul notarului acuzat că nu a virat impozite: ce spun sursele și ce urmează în instanță',
+      'Acuzațiile fiscale din cazul notarului din Capitală, explicate pe scurt',
+      '1,5 milioane de euro prejudiciu într-un dosar cu impozite nevirate. Ce poate recupera statul',
+      'Trimiterea în judecată a notarului nu înseamnă verdict. Ce trebuie menționat în articol',
+      'Cazul notarului din București: impozite, contribuții și răspundere legală'
     ];
-  } else if (/ucraina|rusia|nato|ue|moldova|sua|iran|bulgaria|italia/.test(text)) {
+  } else if (/alimente|adaos|plafon|pret|preturi|retailer|magazin|lista produs/.test(text)) {
     titles = [
-      `${base}. De ce contează pentru România`,
-      `${base}: legătura cu UE, NATO și regiunea`,
-      `${base}. Ce se schimbă în relațiile externe`,
-      `${base}: ce înseamnă decizia pentru flancul estic`,
-      `${base}. Reacțiile și documentele care trebuie urmărite`
+      'Alimente cu adaos plafonat până la final de an. Lista produselor și ce se vede la raft',
+      'Prețuri plafonate la alimente: ce produse rămân pe listă și până când se aplică măsura',
+      'Plafonarea adaosului comercial continuă. Ce trebuie să știe cumpărătorii și magazinele',
+      'Măsura care ține prețurile sub control încă șase luni. Ce alimente sunt vizate',
+      'Adaos comercial plafonat: termenul nou, produsele vizate și instituțiile care verifică',
+      'Ce schimbă votul din Parlament pentru alimentele de bază și prețurile din magazine'
     ];
-  } else if (/meteo|anm|cod galben|cod portocaliu|furtuni|vreme|canicula|ninsoare/.test(text)) {
+  } else if (/ucraina|rusia|nato|patriot|rachete|marea neagra|bulgaria|moldova|razboi/.test(text)) {
     titles = [
-      `${base}. Zonele vizate și intervalul anunțat`,
-      `${base}: județele afectate și riscurile pentru populație`,
-      `Cod meteo în România: unde sunt așteptate furtuni și până când este valabilă avertizarea`,
-      `${base}. Ce trebuie să știe șoferii și locuitorii din zonele afectate`,
-      `${base}: harta avertizărilor și recomandările autorităților`
+      'Ucraina caută alternative la rachetele Patriot. De ce subiectul contează pentru România',
+      'Rachete Patriot, Ucraina și flancul estic. Ce poate schimba noua soluție militară',
+      'Alternativa mai ieftină la Patriot: întrebarea de securitate care privește și România',
+      'Ce înseamnă noul proiect al Ucrainei pentru apărarea aeriană din regiune',
+      'Ucraina, NATO și costul apărării aeriene. De ce România trebuie să urmărească subiectul',
+      'Soluția ucraineană de apărare care poate schimba discuția despre rachetele Patriot'
     ];
-  } else if (/notar|parchet|procuror|judecat|instanta|dosar|ancheta|condamn/.test(text)) {
+  } else if (/cfr cluj|fcsb|rapid|dinamo|craiova|fotbal|cantonament|transfer|meci|superliga/.test(text)) {
     titles = [
-      `${base}. Prejudiciul anunțat și stadiul dosarului`,
-      `${base}: ce spun procurorii și ce trebuie verificat`,
-      `${base}. Acuzațiile, suma și prezumția de nevinovăție`,
-      `${base}: ce urmează în instanță`,
-      `${base}. De ce cazul contează pentru contribuabili`
+      'CFR Cluj începe pregătirea pentru noul sezon. Ce se știe despre cantonamentul din Slovenia',
+      'Reunirea CFR Cluj: programul, cantonamentul și semnele pentru lotul noului sezon',
+      'Cantonament în Slovenia pentru CFR Cluj. Ce urmăresc suporterii înainte de startul sezonului',
+      'CFR Cluj revine la pregătire. Datele importante despre lot și meciurile amicale',
+      'Ce pregătește CFR Cluj înainte de noul sezon și ce trebuie confirmat de club',
+      'Programul de vară al CFR Cluj: reunire, cantonament și primele teste'
     ];
-  } else if (/injunghiat|crima|omor|amenintat|violenta|politia|isu|accident|incendiu/.test(text)) {
+  } else if (/meteo|anm|cod galben|cod portocaliu|furtuna|ploi|vijelie|canicula|inundatii/.test(text)) {
     titles = [
-      `${base}. Ce au transmis autoritățile`,
-      `${base}: victima, suspectul și primele date din anchetă`,
-      `${base}. Ce se știe despre incident și ce trebuie confirmat`,
-      `${base}: ancheta și măsurile anunțate`,
-      `${base}. Întrebările la care trebuie să răspundă autoritățile`
+      'Cod meteo în România: județele vizate, intervalul și riscurile anunțate',
+      'Vreme severă în următoarele ore. Ce trebuie să știe oamenii din zonele afectate',
+      'Avertizarea ANM explicată: unde plouă, când sunt vijelii și ce se poate schimba',
+      'Furtuni și ploi torențiale: harta zonelor vizate și recomandările autorităților',
+      'Cod galben sau portocaliu de vreme rea. Intervalul critic și județele afectate',
+      'Ce aduce avertizarea meteo pentru trafic, gospodării și evenimente în aer liber'
+    ];
+  } else if (/injunghiat|crima|omor|violenta|amenintar|victima|suspect|arest|retinut/.test(text)) {
+    titles = [
+      'Atac violent în Iași. Ce au confirmat autoritățile și ce rămâne de verificat',
+      'Femeie înjunghiată după amenințări telefonice. Întrebările la care trebuie să răspundă ancheta',
+      'Cazul din Iași, dincolo de știrea de fapt divers: victimă, suspect și sesizări anterioare',
+      'Ce se știe oficial despre atacul din Iași și ce nu trebuie prezentat ca certitudine',
+      'Amenințări, atac și anchetă penală. Detaliile importante din cazul de la Iași',
+      'Siguranța victimelor și reacția autorităților, după atacul relatat la Iași'
+    ];
+  } else if (/nicusor|grindeanu|tomac|ciolacu|simion|psd|pnl|usr|aur|udmr|guvern|premier|coalitie|parlament|motiune/.test(text)) {
+    titles = [
+      'Planul politic din spatele declarației. Ce urmează pentru Guvern și partide',
+      'Negocieri, presiuni și variante de premier. Ce trebuie verificat înainte de concluzii',
+      'Declarația care schimbă jocul politic: cine este vizat și care este pasul următor',
+      'Guvernul, partidele și scenariul de rezervă. Ce se poate întâmpla în următoarele zile',
+      'Ce ascunde conflictul politic din ultimele declarații și unde se vede efectul instituțional',
+      'De la declarație la decizie: documentul sau votul care poate confirma schimbarea'
     ];
   } else {
+    const words = significantWordsClient(rawTitle).slice(0, 5).join(' ');
     titles = [
-      `${base}. Ce se știe și ce trebuie verificat`,
-      `${base}: contextul și următorul pas`,
-      `${base}. Cine este afectat și ce informații lipsesc`,
-      `${base}: datele confirmate până acum`,
-      `${base}. Ce trebuie urmărit în următoarele ore`
+      `${base}. Ce este nou față de primele relatări`,
+      `${sentenceCase(words || focus)}: detaliul care schimbă lectura subiectului`,
+      `${base}: cine este vizat și ce informații lipsesc`,
+      `Ce trebuie verificat înainte de publicare în cazul ${focus}`,
+      `${base}. Contextul care poate face diferența pentru cititori`,
+      `${sentenceCase(focus)}: ce urmează și de ce merită urmărit subiectul`
     ];
   }
-
-  titles.push(`${sentenceCase(focus)}: expresia pe care se poate indexa articolul`);
   return Array.from(new Set(titles.map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean))).slice(0, 6);
 }
 

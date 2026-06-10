@@ -1450,6 +1450,7 @@ function inferOfficialContactTargets(topic) {
   if (/presedint|cotroceni|nicusor|ziua europei|csat/.test(text)) add('Administrația Prezidențială', 'Biroul de presă / comunicare publică', 'https://www.presidency.ro/ro/contact', 'Subiect cu importanță prezidențială sau instituțională.', 'poate confirma agenda, poziția oficială și contextul instituțional.');
   if (!isSport && /guvern|premier|minister|coalitie|motiune|ordonanta|hotarare/.test(text)) add('Guvernul României', 'Biroul de presă', 'https://gov.ro/ro/contact', 'Subiect cu posibilă decizie guvernamentală.', 'poate confirma calendarul, decizia oficială și instituțiile implicate.');
   if (/anaf|taxe|impozit|tva|fiscal|contribuabil/.test(text)) add('ANAF', 'Comunicare publică', 'https://www.anaf.ro/anaf/internet/ANAF/contact', 'Subiect fiscal / contribuabili.', 'poate clarifica aplicarea practică, termenele și categoriile vizate.');
+  if (/concurenta|consiliul concurentei|robor|fixing|cartel/.test(text)) add('Consiliul Concurenței', 'Comunicare publică', 'https://www.consiliulconcurentei.ro/contact/', 'Subiect de concurență / piață / investigație.', 'poate confirma stadiul investigației, regulile vizate și documentele publice.');
   if (/bnr|dobanzi|curs|inflatie|banca|credit|rate/.test(text)) add('BNR', 'Comunicare publică', 'https://www.bnr.ro/Contact-16.aspx', 'Subiect monetar / dobânzi / curs.', 'poate oferi date oficiale și context economic.');
   if (/anm|meteo|vreme|cod galben|cod portocaliu|furtuna|canicula|ploi/.test(text)) add('Administrația Națională de Meteorologie', 'Relații publice / prognoză', 'https://www.meteoromania.ro/', 'Subiect meteo cu impact public.', 'poate confirma avertizările, intervalele și zonele vizate.');
   if (!isSport && /politie|accident|trafic|dosar|ancheta|mai|frontiera/.test(text)) add('Poliția Română / MAI', 'Comunicare publică', 'https://www.politiaromana.ro/ro/contact', 'Subiect de ordine publică / incident / trafic.', 'poate confirma datele operative și măsurile luate.');
@@ -1539,11 +1540,23 @@ function buildContactQuestions(topic, contact) {
   const text = normalize(`${topic.title || ''} ${(topic.entities || []).join(' ')} ${(topic.keywords || []).join(' ')} ${(topic.sources || []).map((s) => `${s.title || ''} ${s.description || ''}`).join(' ')}`);
   const title = topic.title || 'subiectul menționat';
   const domain = domainFromUrl(contact.url || '');
+  const contactName = normalize(`${contact.name || ''} ${contact.role || ''}`);
   const sourceItem = (topic.sources || []).find((s) => normalize(domainFromUrl(s.url || '')) === normalize(domain)) || (topic.sources || [])[0] || {};
   const sourceLine = cleanText(`${sourceItem.title || ''} ${sourceItem.description || ''}`).slice(0, 260);
   const isExtractedSource = contact.type === 'extras public';
-  const official = contact.type === 'oficial';
+  const isPresidency = /presidentiala|presidency|presedint/.test(contactName);
+  const isGov = /guvern/.test(contactName);
+  const isParliament = /deputat|senat|parlament|camera deputatilor/.test(contactName) || contact.type === 'contact local';
+  const isMAE = /mae|afacerilor externe|diplomat/.test(contactName);
+  const isPolice = /politie|mai|parchet|instanta/.test(contactName);
+  const isEducationContact = /educatie|edu.ro|inspectorat/.test(contactName);
+  const isHealthContact = /sanatate|spital|cnas|dsp/.test(contactName);
+  const isSportContact = /club|sport|organizator|frf|lpf/.test(contactName);
+  const isFiscalContact = /anaf|fiscal|bnr|finante/.test(contactName);
+  const isCompetitionContact = /concurenta|consiliul concurentei/.test(contactName);
+
   const sport = /fotbal|cfr cluj|fcsb|rapid|dinamo|craiova|superliga|frf|lpf|cantonament|transfer|meci|lot|club/.test(text);
+  const competitionBank = /robor|banca|banci|consiliul concurentei|concurenta|dobanda|credit|rate|fixing/.test(text);
   const externalSecurity = /rusia|ucraina|nato|ue|moldova|razboi|sancțiuni|sancțiune|aparare|armata|drona|marea neagra|patriot|rachete|kiev/.test(text);
   const foodPrices = /aliment|adaos|plafon|pret|preturi|comercial|magazin|retailer|cosul|produs/.test(text);
   const fiscalLegal = /notar|impozit|taxe|tva|anaf|parchet|procuror|judecat|evaziune|dosar|prejudiciu|contributii/.test(text);
@@ -1551,137 +1564,227 @@ function buildContactQuestions(topic, contact) {
   const weatherEmergency = /anm|meteo|vreme|cod galben|cod portocaliu|furtuna|ploi|canicula|isu|inundatii|vijelie/.test(text);
   const education = !externalSecurity && !sport && /bac|evaluare|educatie|scoala|elev|profesor|examen|admitere/.test(text);
   const health = /sanatate|spital|medic|pacient|boala|tratament|medicament/.test(text);
-  const political = !sport && /politic|guvern|parlament|deputat|senat|camera deputatilor|psd|pnl|usr|aur|udmr|motiune|lege|premier|presedint|ministru|coalitie/.test(text) || contact.type === 'contact local';
+  const political = !sport && /politic|guvern|parlament|deputat|senat|camera deputatilor|psd|pnl|usr|aur|udmr|motiune|lege|premier|presedint|ministru|coalitie|nicusor|grindeanu|tomac/.test(text);
 
   if (isExtractedSource) {
-    if (foodPrices) return [
-      `În articolul publicat de ${domain}, informația despre prelungirea plafonării adaosului comercial se bazează pe votul final din Camera Deputaților, pe un proiect de lege sau pe un comunicat oficial?`,
-      'Care este lista completă a produselor vizate și există modificări față de lista aplicată până acum?',
-      'Data de aplicare este 31 decembrie 2026 sau există pași procedurali înainte de intrarea în vigoare?',
-      'În ce formă a fost menționat impactul pentru magazine, procesatori și cumpărători: prețuri, marje, amenzi sau controale?',
-      `Există un link către documentul oficial / actul normativ pe care s-a bazat relatarea ${domain}?`
-    ];
-    if (fiscalLegal) return [
-      `În relatarea ${domain}, datele despre dosar provin dintr-un comunicat al Parchetului, din rechizitoriu sau din informații Agerpres?`,
-      'Care este prejudiciul exact indicat oficial și ce tipuri de impozite/contribuții sunt menționate separat?',
-      'Persoana trimisă în judecată are o calitate oficială completă ce poate fi publicată sau trebuie păstrată anonimă?',
-      'Au fost dispuse măsuri asigurătorii, recuperări de prejudiciu sau alte măsuri judiciare menționate în documentele oficiale?',
-      'Există o precizare privind prezumția de nevinovăție sau stadiul exact al dosarului în instanță?'
-    ];
-    if (crimeIncident) return [
-      `În articolul publicat de ${domain}, informațiile vin de la Poliție, Parchet, instanță sau de la surse locale?`,
-      'Care este starea victimei/victimelor și ce date sunt confirmate oficial, nu doar relatate de martori?',
-      'Suspectul a fost reținut, arestat preventiv sau este cercetat într-o altă măsură procesuală?',
-      'Există antecedente confirmate: plângeri, ordin de protecție, amenințări anterioare sau sesizări la Poliție?',
-      'Ce detalii trebuie evitate pentru a nu expune victima sau familia și pentru a respecta ancheta?'
-    ];
-    if (weatherEmergency) return [
-      `În articolul ${domain}, avertizarea meteo este preluată de la ANM/ISU sau dintr-o actualizare locală?`,
-      'Care sunt intervalul exact, județele vizate și fenomenele prognozate?',
-      'Există diferențe între codurile meteo: galben, portocaliu sau roșu, pe zone ori ore?',
-      'Ce recomandări concrete pentru populație au fost transmise oficial?',
-      'Unde poate fi verificată actualizarea în timp real: ANM, ISU, CNAIR, Poliție sau autorități locale?'
-    ];
-    if (education) return [
-      `În materialul ${domain}, informația vine de la Ministerul Educației, inspectorate sau centre de examen?`,
-      'Care sunt datele exacte: calendar, subiecte, barem, rezultate sau procedură?',
-      'Ce categorie de elevi/candidați este vizată direct?',
-      'Există document oficial, metodologie sau link de descărcare care poate fi citat?',
-      'Ce termen imediat trebuie urmărit de părinți și elevi?'
-    ];
-    if (health) return [
-      `În articolul ${domain}, informația medicală este confirmată de Ministerul Sănătății, CNAS, DSP sau spital?`,
-      'Ce categorie de pacienți este vizată direct?',
-      'Există un calendar, o procedură sau o condiție de acces pentru serviciul/anunțul relatat?',
-      'Ce trebuie să facă concret cititorii: programare, trimitere, documente, verificare la medicul de familie?',
-      'Există riscul unei interpretări greșite care trebuie explicată separat în articol?'
-    ];
-    if (externalSecurity) return [
-      `În materialul ${domain}, informația se bazează pe declarații oficiale, agenții internaționale sau documente guvernamentale?`,
-      'Care este efectul concret pentru România sau pentru regiunea Mării Negre?',
-      'Există o poziție oficială a României, UE sau NATO citată în sursa inițială?',
-      'Ce elemente sunt confirmate și ce rămâne interpretare politică sau analiză?',
-      'Ce evoluție trebuie urmărită în orele următoare: reacții, vot, sancțiuni, măsuri militare sau diplomatice?'
-    ];
-    if (sport) return [
-      `În articolul publicat de ${domain}, informațiile despre programul echipei sunt confirmate de club sau provin din surse apropiate?`,
-      'Care este data exactă a reunirii și perioada cantonamentului?',
-      'Există adversari confirmați pentru meciurile amicale sau programul este încă provizoriu?',
-      'Ce jucători lipsesc, revin sau sunt așteptați la pregătire?',
-      'Există un comunicat oficial al clubului sau o persoană de presă care poate confirma detaliile?'
+    if (sourceLine) return [
+      `În materialul publicat de ${domain}, informația-cheie este „${sourceLine}”. Care este sursa primară a acestei informații?`,
+      `Există document, comunicat, declarație sau înregistrare pe care ${domain} s-a bazat și care poate fi citată direct?`,
+      'Ce element din articol a fost confirmat după publicare și ce rămâne încă neconfirmat?',
+      'Există o actualizare, corectură sau reacție apărută după prima publicare?',
+      'Ce detaliu nu ar trebui preluat ca certitudine fără verificare suplimentară?'
     ];
     return [
-      `În articolul publicat de ${domain}, care este sursa primară a informației: comunicat, document oficial, agenție de presă sau declarație directă?`,
-      sourceLine ? `Textul sursei spune: „${sourceLine}”. Ce detaliu esențial trebuie verificat înainte de preluare?` : 'Ce detaliu esențial trebuie verificat înainte de preluare?',
-      'Există o actualizare după publicarea articolului inițial?',
-      'Ce informație nu ar trebui prezentată ca certitudine fără confirmare suplimentară?',
-      'Puteți indica documentul, instituția sau persoana care poate confirma oficial subiectul?'
+      `Care este sursa primară a informației publicate de ${domain}?`,
+      'Există document sau comunicat oficial disponibil public?',
+      'Ce date s-au actualizat după publicarea inițială?',
+      'Ce informație trebuie formulată prudent?',
+      'Cine poate confirma oficial subiectul?'
     ];
   }
 
-  if (foodPrices) return [
-    'Care este actul oficial prin care se prelungește plafonarea adaosului comercial și care este stadiul lui procedural?',
-    'Ce produse intră exact pe lista alimentelor de bază și ce produse au fost scoase sau adăugate?',
-    'Până la ce dată se aplică măsura și cine trebuie să o respecte: retaileri, procesatori, distribuitori?',
-    'Ce instituție controlează aplicarea plafonării și ce sancțiuni sunt prevăzute?',
-    'Ce efect practic estimați pentru cumpărători în următoarele luni?'
-  ];
-  if (fiscalLegal) return [
-    `Ce date oficiale puteți confirma despre dosarul menționat în subiectul „${title}”?`,
-    'Care este prejudiciul indicat în documentele oficiale și ce obligații fiscale sunt vizate?',
-    'În ce stadiu se află cauza: urmărire penală, trimitere în judecată, cameră preliminară sau judecată pe fond?',
-    'Au fost dispuse măsuri pentru recuperarea prejudiciului?',
-    'Există precizări care trebuie menționate pentru respectarea prezumției de nevinovăție?'
-  ];
-  if (crimeIncident) return [
-    `Ce informații sunt confirmate oficial despre incidentul din „${title}”?`,
-    'Care este starea victimei și ce măsuri au fost luate față de suspect?',
-    'A existat anterior o sesizare, amenințare, ordin de protecție sau alt element confirmat de autorități?',
-    'Ce încadrare juridică este avută în vedere în acest moment?',
-    'Ce informații nu pot fi publicate acum pentru a nu afecta ancheta sau persoanele vulnerabile?'
-  ];
-  if (political) return [
-    `Care este poziția oficială privind subiectul „${title}”?`,
-    'Există o decizie adoptată sau este vorba doar despre o intenție/anunț politic?',
-    'Care este următorul pas concret: vot, ședință, consultare, promulgare, publicare în Monitorul Oficial?',
-    'Ce categorii de cetățeni sau instituții sunt afectate direct?',
-    'Ce document public poate fi citat pentru verificarea informației?'
-  ];
-  if (weatherEmergency) return [
-    `Ce date sunt confirmate oficial despre avertizarea/incidentul „${title}”?`,
-    'Care sunt zonele și intervalele exacte vizate?',
-    'Ce recomandări concrete transmiteți populației?',
-    'Există riscul extinderii sau actualizării avertizării în următoarele ore?',
-    'Unde pot cititorii verifica actualizările oficiale?'
-  ];
-  if (education) return [
-    `Ce informații oficiale puteți confirma despre „${title}”?`,
-    'Care este calendarul exact și ce document trebuie consultat?',
-    'Ce categorie de elevi, părinți sau profesori este afectată direct?',
-    'Există link oficial pentru subiecte, rezultate, bareme sau metodologie?',
-    'Ce termen imediat trebuie urmărit?'
-  ];
-  if (health) return [
-    `Ce informații oficiale puteți confirma despre „${title}”?`,
-    'Ce pacienți sau servicii medicale sunt vizate?',
-    'Care este procedura concretă pentru public?',
-    'Există document, comunicat sau listă oficială care poate fi citată?',
-    'Ce recomandare practică trebuie transmisă cititorilor?'
-  ];
-  if (sport) return [
-    `Ce detalii puteți confirma despre „${title}”?`,
-    'Care este programul exact: reunire, cantonament, meciuri amicale și revenirea în țară?',
-    'Ce informații despre lot sunt confirmate oficial și ce rămâne la nivel de discuții?',
-    'Există un comunicat al clubului sau o pagină oficială care poate fi citată?',
-    'Ce urmează pentru echipă în următoarele zile?'
-  ];
-  if (official) return [
-    `Ce informații puteți confirma oficial despre „${title}”?`,
-    'Există un document, comunicat sau calendar oficial disponibil public?',
-    'Care este efectul concret pentru publicul din România?',
-    'Ce urmează în următoarele ore sau zile?',
-    'Există o persoană/instituție mai potrivită pentru clarificări suplimentare?'
-  ];
+  if (competitionBank) {
+    if (isCompetitionContact) return [
+      'Ce reguli de concurență sunt vizate în cazul semnalat și ce etapă are procedura în acest moment?',
+      'Există decizie, investigație în curs sau doar declarații publice care trebuie prezentate prudent?',
+      'Ce poate fi comunicat despre perioada de fixing ROBOR și contactele permise sau interzise între bănci?',
+      'Ce efect poate avea cazul pentru consumatori, credite sau piața bancară, fără a anticipa concluziile instituției?',
+      'Unde poate fi verificat documentul public sau comunicatul oficial relevant?'
+    ];
+    if (isFiscalContact) return [
+      'Există date oficiale privind impactul asupra pieței bancare, dobânzilor sau creditelor?',
+      'Ce indicatori pot fi citați corect pentru context: ROBOR, IRCC, dobânzi, volum credite?',
+      'Ce nu trebuie afirmat despre costurile consumatorilor fără date confirmate?',
+      'Există o sursă publică BNR/ANAF/Ministerul Finanțelor relevantă pentru articol?',
+      'Ce formulare prudentă recomandați pentru efectul asupra clienților?'
+    ];
+    return [
+      'Ce informație exactă puteți confirma despre acest caz și stadiul lui?',
+      'Ce instituție are competența principală pentru verificarea informației?',
+      'Ce efect public poate fi explicat fără concluzii premature?',
+      'Există document sau comunicat public care poate fi citat?',
+      'Ce evoluție trebuie urmărită în următoarele zile?'
+    ];
+  }
+
+  if (foodPrices) {
+    if (isGov) return [
+      'Guvernul susține forma adoptată privind plafonarea adaosului comercial și care este calendarul până la aplicare?',
+      'Ce produse rămân pe lista alimentelor de bază și cine a propus eventualele modificări?',
+      'Ce instituții vor controla aplicarea măsurii și ce sancțiuni sunt prevăzute?',
+      'Există o estimare oficială privind efectul la raft sau asupra retailerilor?',
+      'Care este documentul oficial ce poate fi citat în articol?'
+    ];
+    if (isParliament) return [
+      'Cum s-a votat proiectul și ce pași procedurali mai există până la aplicare?',
+      'Au fost amendamente privind lista produselor sau termenul de 31 decembrie 2026?',
+      'Ce argumente au fost invocate în dezbatere pentru prelungirea măsurii?',
+      'Ce categorie este vizată direct: cumpărători, retaileri, procesatori sau distribuitori?',
+      'Unde poate fi consultată forma adoptată de Parlament?'
+    ];
+    return [
+      'Care este actul oficial prin care se prelungește plafonarea adaosului comercial?',
+      'Ce produse intră exact pe lista alimentelor de bază?',
+      'Până la ce dată se aplică măsura și cine trebuie să o respecte?',
+      'Ce instituție controlează aplicarea plafonării?',
+      'Ce efect practic estimați pentru cumpărători în următoarele luni?'
+    ];
+  }
+
+  if (fiscalLegal) {
+    if (isPolice || /parchet|instanta/.test(contactName)) return [
+      `Ce date oficiale puteți confirma despre dosarul menționat în subiectul „${title}”?`,
+      'Care este prejudiciul indicat în documente și pentru ce perioadă sunt calculate sumele?',
+      'Care este stadiul cauzei: trimitere în judecată, cameră preliminară sau judecată pe fond?',
+      'Au fost dispuse măsuri asigurătorii ori alte măsuri pentru recuperarea prejudiciului?',
+      'Ce formulare trebuie folosită pentru a respecta prezumția de nevinovăție?'
+    ];
+    if (isFiscalContact) return [
+      'Ce obligații fiscale sunt relevante în acest tip de caz: impozit pe transfer, venit, CAS, CASS sau alte contribuții?',
+      'Cum poate fi explicată publicului diferența dintre obligație fiscală nevirată și prejudiciu stabilit în dosar?',
+      'Există date publice despre recuperarea sumelor datorate bugetului?',
+      'Ce instituție poate confirma partea fiscală fără a comenta ancheta penală?',
+      'Ce documente publice pot fi citate pentru context fiscal?'
+    ];
+    return [
+      'Ce date sunt confirmate oficial și ce apar doar în relatarea de presă?',
+      'Ce sumă și ce perioadă trebuie menționate cu prudență?',
+      'Care este instituția competentă pentru confirmarea dosarului?',
+      'Ce informații trebuie evitate până la comunicatul oficial?',
+      'Ce urmează procedural în acest caz?'
+    ];
+  }
+
+  if (crimeIncident) {
+    if (isPolice) return [
+      `Ce informații sunt confirmate oficial despre incidentul din „${title}”?`,
+      'Care este starea victimei și ce măsuri au fost luate față de suspect?',
+      'A existat anterior o sesizare, amenințare sau ordin de protecție?',
+      'Ce încadrare juridică este avută în vedere în acest moment?',
+      'Ce detalii nu pot fi publicate pentru a nu afecta ancheta sau persoanele vulnerabile?'
+    ];
+    if (isHealthContact) return [
+      'Ce puteți confirma despre starea medicală a victimei, fără date personale protejate?',
+      'Victima a rămas internată sau a primit îngrijiri de urgență?',
+      'Există recomandări privind protejarea identității sau a datelor medicale?',
+      'Ce informații pot fi publicate legal despre intervenția medicală?',
+      'Cine poate confirma oficial evoluția stării victimei?'
+    ];
+    return [
+      'Ce parte a incidentului puteți confirma din surse oficiale?',
+      'Ce elemente țin de anchetă și nu trebuie prezentate ca certe?',
+      'Există reacții sau măsuri anunțate după incident?',
+      'Ce detaliu este important pentru siguranța publică?',
+      'Unde trebuie cerută confirmarea finală?'
+    ];
+  }
+
+  if (externalSecurity) {
+    if (isMAE) return [
+      'Există o poziție oficială a României privind subiectul și poate fi citată public?',
+      'Subiectul are efect direct asupra securității regionale, Mării Negre, UE sau NATO?',
+      'Ce element ține de poziția României și ce rămâne doar informație din surse externe?',
+      'Există contacte diplomatice, reuniuni sau documente care trebuie urmărite în perioada următoare?',
+      'Ce formulare prudentă recomandați pentru a evita concluzii neconfirmate?'
+    ];
+    if (isGov || isPresidency) return [
+      'Administrația/Guvernul are o poziție publică privind acest subiect extern?',
+      'Există o discuție în CSAT, Guvern, UE sau NATO legată de această temă?',
+      'Care este legătura directă cu România pe care o putem menționa fără speculații?',
+      'Ce document sau declarație publică poate fi citată?',
+      'Ce următor pas instituțional trebuie urmărit?'
+    ];
+    return [
+      'Ce sursă primară internațională confirmă informația?',
+      'Care este legătura verificabilă cu România?',
+      'Ce rămâne analiză sau interpretare politică?',
+      'Există reacții UE/NATO sau ale statelor implicate?',
+      'Ce evoluție trebuie urmărită în următoarele ore?'
+    ];
+  }
+
+  if (sport) {
+    if (isSportContact) return [
+      `Ce detalii oficiale puteți confirma despre „${title}”?`,
+      'Care este programul exact: reunire, cantonament, meciuri amicale și revenirea în țară?',
+      'Ce informații despre lot sunt confirmate oficial și ce rămâne la nivel de discuții?',
+      'Există un comunicat al clubului sau o pagină oficială care poate fi citată?',
+      'Ce urmează pentru echipă în următoarele zile?'
+    ];
+    return [
+      'Informația este confirmată de club sau provine din surse apropiate echipei?',
+      'Ce detaliu de program poate fi verificat oficial?',
+      'Există date despre lot, absențe sau meciuri amicale?',
+      'Unde apare comunicatul oficial al clubului?',
+      'Ce termen trebuie urmărit de suporteri?'
+    ];
+  }
+
+  if (education) {
+    if (isEducationContact) return [
+      `Ce informații oficiale puteți confirma despre „${title}”?`,
+      'Care este calendarul exact și ce document trebuie consultat?',
+      'Ce categorie de elevi, părinți sau profesori este afectată direct?',
+      'Există link oficial pentru subiecte, rezultate, bareme sau metodologie?',
+      'Ce termen imediat trebuie urmărit?'
+    ];
+    return [
+      'Care este sursa oficială pentru informația de educație?',
+      'Ce categorie de elevi sau părinți este vizată?',
+      'Ce document trebuie citat?',
+      'Ce termen imediat contează?',
+      'Ce interpretare greșită trebuie evitată?'
+    ];
+  }
+
+  if (health) {
+    if (isHealthContact) return [
+      `Ce informații oficiale puteți confirma despre „${title}”?`,
+      'Ce pacienți sau servicii medicale sunt vizate?',
+      'Care este procedura concretă pentru public?',
+      'Există document, comunicat sau listă oficială care poate fi citată?',
+      'Ce recomandare practică trebuie transmisă cititorilor?'
+    ];
+    return [
+      'Ce instituție medicală sau administrativă poate confirma subiectul?',
+      'Ce categorie de pacienți este vizată?',
+      'Ce document public există?',
+      'Ce trebuie să facă oamenii concret?',
+      'Ce informații medicale nu trebuie publicate fără confirmare?'
+    ];
+  }
+
+  if (political) {
+    if (isPresidency) return [
+      'Administrația Prezidențială poate confirma existența unei consultări, nominalizări sau poziții publice pe acest subiect?',
+      'Președintele are un rol constituțional concret în etapa următoare sau subiectul ține de partide/Guvern?',
+      'Există un calendar public al consultărilor, desemnării sau anunțurilor oficiale?',
+      'Ce declarație/document poate fi citat exact pentru poziția Administrației Prezidențiale?',
+      'Ce nu ar trebui atribuit Președinției fără confirmare explicită?'
+    ];
+    if (isGov) return [
+      'Guvernul poate confirma dacă subiectul a fost discutat oficial sau este doar scenariu politic?',
+      'Există proiect, memorandum, ordonanță, hotărâre sau comunicat care poate fi citat?',
+      'Care minister/instituție are responsabilitatea principală pentru următorul pas?',
+      'Ce efect administrativ are subiectul pentru cetățeni sau instituții?',
+      'Când poate apărea următoarea comunicare oficială?'
+    ];
+    if (isParliament) return [
+      'Care este poziția partidului/grupului parlamentar față de acest subiect?',
+      'Există vot, moțiune, proiect de lege sau negociere parlamentară asociată?',
+      'Ce condiții politice sunt puse și ce pas concret urmează?',
+      'Ce efect poate avea asupra majorității, Guvernului sau calendarului parlamentar?',
+      'Ce document public sau declarație oficială poate fi citată?'
+    ];
+    return [
+      'Este vorba despre o decizie oficială sau doar despre o declarație politică?',
+      'Care este următorul pas instituțional concret?',
+      'Cine este afectat direct de această decizie sau blocaj?',
+      'Ce document public poate fi citat?',
+      'Ce informație lipsește acum din spațiul public?'
+    ];
+  }
+
   return [
     `Ce puteți confirma despre subiectul „${title}”?`,
     'Care este sursa primară a informației?',
