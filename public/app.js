@@ -549,7 +549,8 @@ function getApiFeatureDetails(action) {
   }
   if (action === 'draft') {
     return `<ul>
-      <li>ar scrie un draft de articol publicabil, nu instrucțiuni pentru editor;</li>
+      <li>ar scrie un draft editabil, nu text final publicabil, pe care redactorul poate interveni cu tonul personal, stilul propriu și verificările finale;</li>
+          <li>ar include indicații clare despre cum poate fi editat textul ca să se indexeze mai bine în Google, prin expresii naturale căutate de oameni și integrate în primele 300–400 de cuvinte;</li>
       <li>ar integra expresii-cheie în primele 300–400 de cuvinte;</li>
       <li>ar păstra stilul Oficiul de Știri și ar evita formulările de tip Copilot.</li>
     </ul>`;
