@@ -46,7 +46,8 @@ const MAX_AGE_MINUTES = Number(process.env.MAX_AGE_MINUTES || 120);
 const MAX_TOPICS = Number(process.env.MAX_TOPICS || 60);
 const MIN_SCAN_MINUTES = 60;
 const MAX_SCAN_MINUTES = 24 * 60;
-const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 20000);
+const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 7000);
+const FEED_CONCURRENCY = Number(process.env.FEED_CONCURRENCY || 10);
 const USER_AGENT = process.env.USER_AGENT || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const STRICT_SOURCE_AGE = String(process.env.STRICT_SOURCE_AGE || '1') !== '0';
 const FAST_OFICIU_SCAN = String(process.env.FAST_OFICIU_SCAN || '1') !== '0';
@@ -133,6 +134,8 @@ async function route(req, res) {
       strictSourceAge: STRICT_SOURCE_AGE,
       fastOficiuScan: FAST_OFICIU_SCAN,
       autoRefreshMinutes: AUTO_REFRESH_MINUTES,
+      requestTimeoutMs: REQUEST_TIMEOUT_MS,
+      feedConcurrency: FEED_CONCURRENCY,
       supportedScanIntervalsMinutes: [60, 120, 180, 240, 360, 480, 720, 1440]
     });
   }
@@ -194,7 +197,7 @@ async function buildRadar(maxAgeMinutes = MAX_AGE_MINUTES) {
     mode: 'standalone-no-wordpress-admin',
     note: 'Dashboard extern: nu modifică WordPress, nu cere pluginuri și scanează doar conținut public.',
     dataQuality: {
-      googleTrends: 'Scanarea folosește RSS-uri directe de publicații românești. Google News RSS este opțional prin USE_GOOGLE_NEWS_RSS=1, deoarece poate răspunde cu HTTP 503 pe Render.',
+      googleTrends: 'Scanarea folosește RSS-uri directe de publicații românești. Google News RSS este opțional prin USE_GOOGLE_NEWS_RSS=1. Scanarea folosește timeout scurt și paralelism mai mare ca să nu rămână blocată în scanning.',
       oficiuScan: 'Verificare publică: WP REST dacă este permis, search intern, sitemap și opțional Google CSE/SerpAPI.'
     },
     limits: {
@@ -203,7 +206,9 @@ async function buildRadar(maxAgeMinutes = MAX_AGE_MINUTES) {
       fastOficiuScan: FAST_OFICIU_SCAN,
       autoRefreshMinutes: AUTO_REFRESH_MINUTES,
       maxTopics: MAX_TOPICS,
-      cacheTtlMinutes: Math.round(CACHE_TTL_MS / 60000)
+      cacheTtlMinutes: Math.round(CACHE_TTL_MS / 60000),
+      requestTimeoutMs: REQUEST_TIMEOUT_MS,
+      feedConcurrency: FEED_CONCURRENCY
     },
     stats: {
       rawItems: rawItems.length,
@@ -227,7 +232,7 @@ async function fetchAllCandidateItems(sourceErrors, maxAgeMinutes = MAX_AGE_MINU
     ...getPublisherRssUrls(),
     ...getGoogleNewsRssUrls(maxAgeMinutes)
   ];
-  const results = await mapLimit(urls, 3, async (feed) => {
+  const results = await mapLimit(urls, FEED_CONCURRENCY, async (feed) => {
     try {
       const xml = await cached(`feed:${feed.url}`, Math.min(CACHE_TTL_MS, 5 * 60 * 1000), () => fetchText(feed.url));
       return parseRssItems(xml).map((item) => ({ ...item, feedType: feed.type, feedUrl: feed.url, feedLabel: feed.label }));

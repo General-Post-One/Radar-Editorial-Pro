@@ -138,7 +138,10 @@ async function loadRadar(forceFresh) {
     const params = new URLSearchParams();
     if (forceFresh) params.set('fresh', '1');
     params.set('maxAge', String(maxAge));
-    const response = await fetch(`/api/radar?${params.toString()}`, { cache: 'no-store' });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    const response = await fetch(`/api/radar?${params.toString()}`, { cache: 'no-store', signal: controller.signal });
+    clearTimeout(timeout);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     const incomingTopics = Array.isArray(data.topics) ? data.topics : [];
