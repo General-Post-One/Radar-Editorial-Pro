@@ -498,10 +498,6 @@ function renderTopicCard(topic) {
 
       <div class="sources-list">${sourcesHtml || '<span class="badge">Surse indisponibile</span>'}</div>
 
-      <div class="card-actions">
-        <button class="btn btn-primary" type="button" data-action="copy-ai" data-id="${escapeAttr(topic.id)}">Copiaza pentru AI</button>
-      </div>
-
       ${renderOnlineArticleLinks(topic)}
     </article>
   `;
