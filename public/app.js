@@ -114,7 +114,16 @@ function bindEvents() {
     if (button.dataset.action === 'brief') showBrief(topic);
     if (button.dataset.action === 'titles') showTitles(topic);
     if (button.dataset.action === 'contacts') showContactsAndDrafts(topic);
-    if (button.dataset.action === 'draft') showCopyPasteDraft(topic);
+    if (button.dataset.action === 'draft') {
+      try {
+        showCopyPasteDraft(topic);
+      } catch (error) {
+        console.error('Eroare draft local', error);
+        el.dialogTitle.textContent = 'Draft local';
+        el.dialogBody.innerHTML = `<p class="error"><strong>Draftul nu s-a putut genera.</strong> ${escapeHtml(error.message || 'Eroare necunoscută')}</p>`;
+        openDialog();
+      }
+    }
     if (button.dataset.action === 'links') showLinksAndImages(topic);
   });
 }
@@ -486,7 +495,7 @@ function renderTopicCard(topic) {
       </div>
 
       <p class="reason"><strong>Pe scurt:</strong> ${escapeHtml(buildShortSummary(topic))}</p>
-      <p class="reason"><strong>De ce contează:</strong> ${escapeHtml(topic.reason || '')}</p>
+      <p class="reason"><strong>De ce contează:</strong> ${escapeHtml(buildImpactReasonClient(topic))}</p>
       <p class="reason"><strong>Entități detectate:</strong> ${escapeHtml((topic.entities || []).join(', ') || '—')}</p>
       <p class="reason"><strong>Keywords:</strong> ${escapeHtml((topic.keywords || []).slice(0, 8).join(', ') || buildFocusKeyword(topic))}</p>
 
@@ -497,7 +506,7 @@ function renderTopicCard(topic) {
         <button class="btn btn-primary" data-action="brief" data-id="${escapeAttr(topic.id)}" type="button">Brief</button>
         <button class="btn" data-action="titles" data-id="${escapeAttr(topic.id)}" type="button">SEO complet</button>
         <button class="btn" data-action="contacts" data-id="${escapeAttr(topic.id)}" type="button">Contacte + drafturi</button>
-        <button class="btn" data-action="links" data-id="${escapeAttr(topic.id)}" type="button">Linkuri + poze</button>
+        <button class="btn" data-action="links" data-id="${escapeAttr(topic.id)}" type="button">Linkuri + surse</button>
         <button class="btn" data-action="draft" data-id="${escapeAttr(topic.id)}" type="button">Draft</button>
       </div>
     </article>
@@ -519,14 +528,14 @@ function showBrief(topic) {
     <h3>Rezumat rapid</h3>
     <ul>
       <li><strong>Ce s-a întâmplat:</strong> ${escapeHtml(topic.title)}</li>
-      <li><strong>De ce contează:</strong> ${escapeHtml(topic.reason || 'Subiectul are potențial de interes public și trebuie verificat din surse primare.')}</li>
+      <li><strong>De ce contează:</strong> ${escapeHtml(buildImpactReasonClient(topic))}</li>
       <li><strong>Cine este afectat:</strong> ${escapeHtml(inferAffectedPeople(topic))}</li>
       <li><strong>Ce urmează:</strong> ${escapeHtml(inferNextStep(topic))}</li>
     </ul>
 
     <h3>Structură articol, maximum 700 de cuvinte</h3>
     <ol>
-      <li><strong>Titlu cu miză:</strong> ${escapeHtml(topic.seoTitle || buildSeoHeadline(topic))}</li>
+      <li><strong>Titlu cu partea importantă clară:</strong> ${escapeHtml(topic.seoTitle || buildSeoHeadline(topic))}</li>
       <li><strong>Lead 2–4 rânduri:</strong> ${escapeHtml(buildLead(topic))}</li>
       <li><strong>Context:</strong> ce lipsește din știrea brută și de ce subiectul contează pentru români.</li>
       <li><strong>Pe scurt:</strong> 3–4 bulleturi cu date verificate.</li>
@@ -551,9 +560,6 @@ function showBrief(topic) {
     <h3>Linkuri și surse</h3>
     <p><strong>Surse externe de verificat:</strong></p>
     <ul>${(topic.sources || []).slice(0, 5).map((s) => `<li><a href="${escapeAttr(s.url || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(s.name || s.url || 'Sursă')}${escapeHtml(formatAuthor(s))}</a></li>`).join('') || '<li>Nu există surse externe disponibile în card.</li>'}</ul>
-    <p><strong>Linkuri interne Oficiul de Știri:</strong> folosește articolele similare de mai jos doar dacă nu dublează unghiul.</p>
-    ${renderMatches(coverage.matches || [])}
-
     <h3>Întrebări pentru telefon</h3>
     <ol>${buildPhoneQuestions(topic).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ol>
 
@@ -589,9 +595,6 @@ function showTitles(topic) {
     <h3>H2/H3 recomandate</h3>
     <p class="muted">Intertitluri finale, concrete și indexabile, generate pe subiect, nu șabloane generice.</p>
     <ul>${buildSeoH2Recommendations(topic).map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul>
-
-    <h3>Imagini</h3>
-    <p>Caută imagine legală pe sursă oficială / instituție / Wikimedia. Nu folosi imagine cu licență neclară fără aprobare.</p>
   `;
   openDialog();
 }
@@ -648,45 +651,65 @@ function showCopyPasteDraft(topic) {
 
 function showLinksAndImages(topic) {
   const externals = chooseExternalLinks(topic);
-  const internal = chooseInternalLinks(topic);
-  const cleanQuery = buildCleanSearchQuery(topic);
-  const focusKeyword = buildFocusKeyword(topic);
-  const officialQuery = encodeURIComponent(`${cleanQuery} site:gov.ro OR site:mai.gov.ro OR site:gov.ro OR site:camera-deputatilor.ro OR site:senat.ro OR site:presidency.ro OR site:anpc.ro OR site:anm.ro`);
-  const googleImagesQuery = encodeURIComponent(`${cleanQuery} Romania`);
-  const commonsQuery = encodeURIComponent(`${cleanQuery} Romania`);
-  const widePhotoQuery = encodeURIComponent(`${cleanQuery} foto imagine Romania`);
-  const oficiuSearch1 = encodeURIComponent(`site:oficiuldestiri.ro ${focusKeyword}`);
-  const oficiuSearch2 = encodeURIComponent(`site:oficiuldestiri.ro ${buildInternalContextQuery(topic)}`);
-  const internalHtml = internal.length
-    ? internal.map((l) => `<li><a href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.anchor)}</a> — ${escapeHtml(l.url)}</li>`).join('')
-    : `<li><a href="https://www.google.com/search?q=${oficiuSearch1}" target="_blank" rel="noopener noreferrer">Caută pe Oficiul de Știri după focus keyword: ${escapeHtml(focusKeyword)}</a></li>
-       <li><a href="https://www.google.com/search?q=${oficiuSearch2}" target="_blank" rel="noopener noreferrer">Caută pe Oficiul de Știri după contextul subiectului</a></li>`;
-
-  el.dialogTitle.textContent = 'Linkuri + poze legale';
+  el.dialogTitle.textContent = 'Linkuri + surse';
   el.dialogBody.innerHTML = `
-    <h3>2 linkuri externe recomandate</h3>
-    <ol>${externals.map((l) => `<li><a href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.anchor)}</a> — ${escapeHtml(l.url)}</li>`).join('') || '<li>Nu sunt suficiente surse externe în card. Verifică manual surse oficiale.</li>'}</ol>
-    <h3>2 linkuri interne Oficiul de Știri</h3>
-    <ol>${internalHtml}</ol>
-    <h3>Poze legale</h3>
-    <p>Caută două imagini: main + după șapou. Am scurtat automat căutarea la: <strong>${escapeHtml(cleanQuery)}</strong>, ca să nu mai trimită în Google titlul întreg și să nu mai dea pagină fără rezultate.</p>
-    <p class="link-button-row">
-      <a class="btn" href="https://www.google.com/search?tbm=isch&q=${googleImagesQuery}" target="_blank" rel="noopener noreferrer">Google Imagini</a>
-      <a class="btn" href="https://commons.wikimedia.org/w/index.php?search=${commonsQuery}&title=Special:MediaSearch&type=image" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a>
-      <a class="btn" href="https://www.google.com/search?q=${officialQuery}" target="_blank" rel="noopener noreferrer">Surse oficiale</a>
-      <a class="btn" href="https://www.google.com/search?tbm=isch&q=${widePhotoQuery}" target="_blank" rel="noopener noreferrer">Căutare largă poze</a>
-    </p>
-    <h4>Checklist imagine</h4>
+    <h3>Linkuri externe detectate</h3>
+    <ol>${externals.map((l) => `<li><a href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.anchor)}</a> — ${escapeHtml(l.url)}</li>`).join('') || '<li>Nu sunt suficiente surse externe în card. Verifică manual sursa oficială sau comunicatul instituției.</li>'}</ol>
+
+    <h3>Surse de verificat înainte de publicare</h3>
     <ul>
-      <li>pagina exactă;</li>
-      <li>link direct download dacă există;</li>
-      <li>credit;</li>
-      <li>licență / drepturi;</li>
-      <li>nume fișier;</li>
-      <li>alt text, title, caption, descriere.</li>
+      <li>sursa inițială a informației: comunicat, document oficial, agenție de presă sau declarație directă;</li>
+      <li>ora publicării și eventualele actualizări apărute după prima știre;</li>
+      <li>instituția care poate confirma oficial datele;</li>
+      <li>dacă subiectul există deja pe Oficiul de Știri, dar pe alt unghi.</li>
+    </ul>
+
+    <h3>Checklist final pentru material</h3>
+    <ul>
+      <li>titlu clar, pe expresia pe care o caută oamenii;</li>
+      <li>șapou cu cine, ce, când și efectul pentru cititor;</li>
+      <li>minimum o sursă externă verificată și, unde se poate, o sursă oficială;</li>
+      <li>fără afirmații care nu apar în sursă sau în documente oficiale;</li>
+      <li>H2-uri concrete, pe subiect, nu intertitluri generice;</li>
+      <li>focus keyword fără diacritice și slug scurt;</li>
+      <li>poza se caută separat manual, doar din surse legale clare.</li>
     </ul>
   `;
   openDialog();
+}
+
+
+function buildImpactReasonClient(topic) {
+  const text = normalize(`${topic.title || ''} ${topic.summary || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')}`);
+  const title = cleanupForArticle(topic.title || 'subiectul');
+  if (/alimente|adaos|plafon|pret|preturi|cosul|magazin|retailer|facturi|tva|taxe|impozit|anaf|pensii|salarii/.test(text)) {
+    return 'Contează pentru România pentru că atinge direct prețurile, bugetul familiilor și regulile după care vând magazinele. Cititorii au nevoie să știe ce produse sunt vizate, până când se aplică măsura și dacă efectul se vede la raft.';
+  }
+  if (/notar|parchet|procuror|judecat|instanta|dosar|ancheta|prejudiciu|evaziune|frauda/.test(text)) {
+    return 'Contează pentru că vorbește despre bani publici, răspundere legală și încrederea în instituții sau profesii cu rol public. Pentru cititori este important să fie separate acuzațiile de fapte dovedite și să fie explicat stadiul dosarului.';
+  }
+  if (/injunghiat|crima|omor|amenintat|violenta|agres|victima|suspect|arest|retinut/.test(text)) {
+    return 'Contează pentru că pune în discuție siguranța oamenilor, reacția autorităților și felul în care sunt protejate victimele. Articolul trebuie să explice ce este confirmat oficial și ce măsuri au fost luate după incident.';
+  }
+  if (/meteo|anm|cod galben|cod portocaliu|vreme|furtuna|ploi|canicula|inundatii|vijelie|isu|trafic/.test(text)) {
+    return 'Contează imediat pentru cititori pentru că poate afecta drumuri, locuințe, școli, evenimente și programul zilnic. Informația utilă este zona vizată, intervalul avertizării și ce trebuie făcut concret.';
+  }
+  if (/cfr cluj|fcsb|rapid|dinamo|craiova|fotbal|meci|transfer|cantonament|superliga|sport/.test(text)) {
+    return 'Contează pentru publicul de sport pentru că arată programul echipei, pregătirea sezonului și posibilele decizii care pot influența lotul sau rezultatele. Cititorii caută date concrete: reunire, cantonament, adversari și transferuri.';
+  }
+  if (/kovesi|eppo|pnrr|ue|bruxelles|italia|rusia|ucraina|nato|moldova|sua|iran|bulgaria|marea neagra/.test(text)) {
+    return 'Contează pentru România pentru că are legătură cu instituții europene, bani publici, securitate regională sau decizii care pot afecta poziția țării în UE și NATO. Textul trebuie să explice legătura românească, nu doar să preia știrea externă.';
+  }
+  if (/guvern|parlament|premier|ministru|lege|ordonanta|vot|coalitie|psd|pnl|usr|aur|udmr|alegeri|grindeanu|tomac|nicusor|simion|ciolacu/.test(text)) {
+    return 'Contează politic pentru că poate schimba decizii publice, negocieri de putere sau reguli care ajung să afecteze cetățenii. Cititorii trebuie să înțeleagă dacă este doar declarație, conflict politic sau pas instituțional concret.';
+  }
+  if (/bac|evaluare|educatie|scoala|elev|profesor|examen|admitere|student/.test(text)) {
+    return 'Contează pentru elevi, părinți și profesori, pentru că poate schimba calendarul, procedura sau informațiile de care depinde pregătirea. Textul trebuie să arate clar cine este vizat și ce termen trebuie urmărit.';
+  }
+  if (/sanatate|spital|medic|pacient|boala|tratament|medicament|cnas|dsp/.test(text)) {
+    return 'Contează pentru pacienți și familii pentru că poate influența accesul la servicii medicale, tratamente sau reguli de sănătate publică. Informația trebuie verificată din surse oficiale și explicată fără alarmism.';
+  }
+  return `Contează dacă informația din „${title}” schimbă ceva concret pentru cititori: bani, siguranță, servicii publice, drepturi sau decizii politice. Materialul trebuie să arate efectul practic pentru România, nu doar faptul că subiectul a apărut în fluxuri.`;
 }
 
 function buildCleanSearchQuery(topic) {
@@ -762,17 +785,17 @@ ${externalText}
 ${internalText}
 
 STIL OFICIUL / HORIA STOIAN:
-Nu scrie doar „s-a întâmplat X”. Scrie ce înseamnă pentru cititor. Materialul trebuie să răspundă la: ce s-a întâmplat, de ce contează, ce urmează, cine este afectat, ce înseamnă pentru cititor. Paragrafe scurte, H2-uri dese, ton clar, explicativ, jurnalistic. Fără clickbait. Nu face preluare seacă. Găsește miza reală.
+Nu scrie doar „s-a întâmplat X”. Scrie ce înseamnă pentru cititor. Materialul trebuie să răspundă la: ce s-a întâmplat, de ce contează, ce urmează, cine este afectat, ce înseamnă pentru cititor. Paragrafe scurte, H2-uri dese, ton clar, explicativ, jurnalistic. Fără clickbait. Nu face preluare seacă. Găsește partea importantă din spatele subiectului.
 
 STRUCTURĂ OBLIGATORIE:
 - maximum 700 de cuvinte, ideal 550–700;
-- titlu cu miză clară;
+- titlu cu partea importantă clară;
 - lead/șapou de 2–4 rânduri cu cine, ce, când, esența știrii, de ce contează, cine e afectat;
 - context;
 - secțiune explicativă: de ce contează / ce înseamnă / cine câștigă și cine pierde;
 - element scanabil: „Pe scurt”, tabel, listă sau timeline;
 - secțiune „Ce urmează”;
-- final cu miză, nu final sec.
+- final cu idee clară, nu final sec.
 
 SEO OBLIGATORIU:
 - Focus keyword fără litere care ar necesita diacritice, dacă se poate;
@@ -1448,7 +1471,7 @@ function buildPhoneQuestions(topic) {
   }
   return [
     'Ce informații sunt confirmate oficial?',
-    'Care este miza pentru publicul din România?',
+    'De ce contează pentru publicul din România?',
     'Cine este afectat direct?',
     'Ce urmează în următoarele ore?',
     'Unde poate fi verificată informația primară?'
