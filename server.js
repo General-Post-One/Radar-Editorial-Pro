@@ -270,18 +270,51 @@ function getPublisherRssUrls() {
   const urls = configured
     ? configured.split(',').map((u) => u.trim()).filter(Boolean).map((url, index) => ({ label: `RSS personalizat ${index + 1}`, url }))
     : [
+        // Surse principale știri generaliste / breaking
         { label: 'RSS · Digi24', url: 'https://www.digi24.ro/rss_files/google_news.xml' },
         { label: 'RSS · HotNews', url: 'https://rss.hotnews.ro/' },
         { label: 'RSS · G4Media', url: 'https://www.g4media.ro/feed' },
-        { label: 'RSS · Economedia', url: 'https://economedia.ro/feed' },
-        { label: 'RSS · Edupedu', url: 'https://www.edupedu.ro/feed/' },
-        { label: 'RSS · Libertatea', url: 'https://www.libertatea.ro/feed' },
-        { label: 'RSS · Europa FM', url: 'https://www.europafm.ro/feed/' },
         { label: 'RSS · Mediafax', url: 'https://www.mediafax.ro/rss' },
-        { label: 'RSS · Stirile ProTV', url: 'https://stirileprotv.ro/rss' },
-        { label: 'RSS · Observator', url: 'https://observatornews.ro/rss' },
+        { label: 'RSS · News.ro', url: 'https://www.news.ro/rss' },
         { label: 'RSS · Antena 3 CNN', url: 'https://www.antena3.ro/rss' },
-        { label: 'RSS · News.ro', url: 'https://www.news.ro/rss' }
+        { label: 'RSS · Observator', url: 'https://observatornews.ro/rss' },
+        { label: 'RSS · Stirile ProTV', url: 'https://stirileprotv.ro/rss' },
+        { label: 'RSS · Libertatea', url: 'https://www.libertatea.ro/feed' },
+        { label: 'RSS · Adevarul', url: 'https://adevarul.ro/rss' },
+        { label: 'RSS · B1 TV', url: 'https://www.b1tv.ro/feed' },
+        { label: 'RSS · Europa FM', url: 'https://www.europafm.ro/feed/' },
+        { label: 'RSS · Gandul', url: 'https://www.gandul.ro/feed' },
+        { label: 'RSS · Romania TV', url: 'https://www.romaniatv.net/feed' },
+        { label: 'RSS · Stiripesurse', url: 'https://www.stiripesurse.ro/rss' },
+        { label: 'RSS · Ziare.com', url: 'https://ziare.com/rss' },
+        { label: 'RSS · SpotMedia', url: 'https://spotmedia.ro/feed' },
+        { label: 'RSS · PressOne', url: 'https://pressone.ro/feed' },
+        { label: 'RSS · Republica', url: 'https://republica.ro/rss' },
+        { label: 'RSS · Aktual24', url: 'https://www.aktual24.ro/feed/' },
+        { label: 'RSS · Cotidianul', url: 'https://www.cotidianul.ro/feed/' },
+
+        // Economie / bani / energie / firme
+        { label: 'RSS · Economedia', url: 'https://economedia.ro/feed' },
+        { label: 'RSS · Profit.ro', url: 'https://www.profit.ro/rss' },
+        { label: 'RSS · Wall-Street', url: 'https://www.wall-street.ro/rss.xml' },
+        { label: 'RSS · Capital', url: 'https://www.capital.ro/feed' },
+        { label: 'RSS · Curs de Guvernare', url: 'https://cursdeguvernare.ro/feed' },
+        { label: 'RSS · Bugetul', url: 'https://www.bugetul.ro/feed/' },
+        { label: 'RSS · DailyBusiness', url: 'https://www.dailybusiness.ro/feed/' },
+        { label: 'RSS · Avocatnet', url: 'https://www.avocatnet.ro/rss' },
+
+        // Educație / sănătate / social
+        { label: 'RSS · Edupedu', url: 'https://www.edupedu.ro/feed/' },
+        { label: 'RSS · HotNews Sănătate', url: 'https://www.hotnews.ro/rss/sanatate' },
+
+        // Sport / life / showbiz, dar păstrate pentru subiecte cu trafic
+        { label: 'RSS · GSP', url: 'https://www.gsp.ro/rss.xml' },
+        { label: 'RSS · ProSport', url: 'https://www.prosport.ro/feed' },
+        { label: 'RSS · Fanatik', url: 'https://www.fanatik.ro/feed' },
+        { label: 'RSS · Click', url: 'https://click.ro/rss' },
+        { label: 'RSS · Cancan', url: 'https://www.cancan.ro/feed' },
+        { label: 'RSS · Playtech', url: 'https://playtech.ro/feed' },
+        { label: 'RSS · A1', url: 'https://a1.ro/feed' }
       ];
 
   return urls.map((feed) => ({ type: 'publisher-rss', label: feed.label, url: feed.url }));
