@@ -416,19 +416,17 @@ function groupCandidateItems(items, now, maxAgeMinutes = MAX_AGE_MINUTES) {
     const ageMinutes = Math.max(0, Math.round((now - itemDate) / 60000));
     if (STRICT_SOURCE_AGE && (!item.pubDate || ageMinutes > maxAgeMinutes)) continue;
     const tokens = significantTokens(title);
+    const clusterTokens = clusterSignificantTokens(title);
     if (tokens.length < 2) continue;
 
-    let group = groups.find((g) => {
-      const sim = jaccard(tokens, g.tokens);
-      const overlap = tokens.filter((t) => g.tokens.includes(t)).length;
-      return sim >= 0.42 || (overlap >= 4 && sim >= 0.28);
-    });
+    let group = groups.find((g) => shouldGroupCandidate(clusterTokens, title, g));
 
     if (!group) {
       group = {
         id: stableId(title),
         title,
         tokens,
+        clusterTokens,
         items: [],
         sources: [],
         ages: [],
@@ -463,6 +461,77 @@ function groupCandidateItems(items, now, maxAgeMinutes = MAX_AGE_MINUTES) {
   }
 
   return groups.map((group) => toTopic(group, maxAgeMinutes));
+}
+
+function clusterSignificantTokens(text) {
+  const base = significantTokens(text)
+    .map(stemForCluster)
+    .filter((token) => token.length >= 3)
+    .filter((token) => !CLUSTER_STOPWORDS.has(token));
+  return [...new Set(base)].slice(0, 50);
+}
+
+function stemForCluster(token) {
+  let t = normalize(token);
+  const irregular = {
+    dronelor: 'dron', drone: 'dron', drona: 'dron', dronele: 'dron', dronelor: 'dron',
+    amenintari: 'amenintar', amenintarile: 'amenintar', amenintarilor: 'amenintar',
+    proiectelor: 'proiect', proiectele: 'proiect', proiecte: 'proiect',
+    negocierile: 'negocier', negocieri: 'negocier', negociere: 'negocier',
+    ministrilor: 'ministr', ministri: 'ministr', ministru: 'ministr',
+    guvernului: 'guvern', guvernul: 'guvern', guvern: 'guvern',
+    romaniei: 'romania', moldovei: 'moldova', ucrainei: 'ucraina',
+    campionilor: 'campion', campioana: 'campion', campionat: 'campionat',
+    bistrita: 'bistrita', bucuresti: 'bucuresti'
+  };
+  if (irregular[t]) return irregular[t];
+  t = t.replace(/(ului|elor|ilor|iilor|easca|este|ilor|ului|ului)$/u, '');
+  t = t.replace(/(ilor|elor|ului|ele|ile|ului|ilor|rea|rii|lor|uri|ului|ului|ului)$/u, '');
+  t = t.replace(/(are|ere|ire|ati|ate|ata|ati|ind|and|esc|esti|ului|ul|le|ii|ia|ei|ea|a)$/u, '');
+  return t.length >= 3 ? t : normalize(token);
+}
+
+const CLUSTER_STOPWORDS = new Set([
+  ...STOPWORDS_RO,
+  'spune','anunta','mesaj','detaliu','informati','publicat','publica','publice','privind','raspuns','raspunsul',
+  'primele','noi','nou','ultim','ultima','video','live','alerta','inainte','dupa','asupra','impotriva','cazul',
+  'milion','milioane','minute','zile','ani','astazi','azi','ieri','maine'
+]);
+
+function shouldGroupCandidate(tokens, title, group) {
+  const groupTokens = group.clusterTokens || clusterSignificantTokens(group.title || '');
+  const sim = jaccard(tokens, groupTokens);
+  const overlap = tokens.filter((t) => groupTokens.includes(t)).length;
+  const minSize = Math.max(1, Math.min(new Set(tokens).size, new Set(groupTokens).size));
+  const containment = overlap / minSize;
+
+  if (sim >= 0.30) return true;
+  if (overlap >= 4 && sim >= 0.18) return true;
+  if (overlap >= 3 && containment >= 0.45) return true;
+
+  const strongOverlap = sharedStrongAnchors(tokens, groupTokens);
+  if (strongOverlap >= 2 && containment >= 0.32) return true;
+
+  const titleA = normalize(title);
+  const titleB = normalize(group.title || '');
+  if (sharedNamedPhrase(titleA, titleB) && (overlap >= 2 || sim >= 0.16)) return true;
+
+  return false;
+}
+
+function sharedStrongAnchors(a, b) {
+  const strong = new Set(['nato','ue','ucraina','moldova','rusia','sua','nicusor','dan','tomac','guvern','parlament','anm','bac','evaluar','fcsb','rapid','dinamo','cfr','cluj','bistrita','bucuresti','messi','infantino','fifa','robor','bnr','anaf','pnl','psd','usr','aur']);
+  const bset = new Set(b);
+  return a.filter((t) => bset.has(t) && strong.has(t)).length;
+}
+
+function sharedNamedPhrase(a, b) {
+  const phrases = [
+    'nicusor dan','eugen tomac','republica moldova','gloria bistrita','csm bucuresti','cfr cluj','liga campionilor',
+    'ministerul educatiei','ministerul externe','consiliul concurentei','piata muncii','locuri de munca',
+    'dosarele prescrise','dosare prescrise','praf saharian','cod galben','cod portocaliu'
+  ];
+  return phrases.some((phrase) => a.includes(phrase) && b.includes(phrase));
 }
 
 function toTopic(group, maxAgeMinutes = MAX_AGE_MINUTES) {
