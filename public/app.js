@@ -115,6 +115,7 @@ function bindEvents() {
     if (button.dataset.action === 'brief') showBrief(topic);
     if (button.dataset.action === 'titles') showTitles(topic);
     if (button.dataset.action === 'contacts') showContactsAndDrafts(topic);
+    if (button.dataset.action === 'prompt') showGptArticlePrompt(topic);
     if (button.dataset.action === 'draft') showCopyPasteDraft(topic);
     if (button.dataset.action === 'links') showLinksAndImages(topic);
   });
@@ -498,6 +499,7 @@ function renderTopicCard(topic) {
         <button class="btn" data-action="contacts" data-id="${escapeAttr(topic.id)}" type="button">Contacte + drafturi</button>
         <button class="btn" data-action="links" data-id="${escapeAttr(topic.id)}" type="button">Linkuri + poze</button>
         <button class="btn" data-action="draft" data-id="${escapeAttr(topic.id)}" type="button">Draft</button>
+        <button class="btn btn-primary" data-action="prompt" data-id="${escapeAttr(topic.id)}" type="button">Prompt articol</button>
       </div>
     </article>
   `;
@@ -647,7 +649,7 @@ function showCopyPasteDraft(topic) {
   const draft = buildLocalCopyPasteDraft(topic);
   el.dialogTitle.textContent = 'Draft local';
   el.dialogBody.innerHTML = `
-    <p class="muted">Draft local rapid, adaptat pe subiect. Verifică informațiile din sursele oficiale înainte de publicare.</p>
+    <p class="muted">Draft local rapid, fără AI. Pentru articol final de calitate, folosește butonul „Prompt articol”.</p>
     <textarea class="draft-textarea large" readonly>${escapeHtml(draft)}</textarea>
     <div class="dialog-actions">
       <button class="btn btn-primary" type="button" onclick="navigator.clipboard.writeText(this.closest('.dialog-body').querySelector('textarea').value)">Copiază draftul</button>
