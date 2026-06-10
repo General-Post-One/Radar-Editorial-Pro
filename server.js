@@ -194,7 +194,7 @@ async function buildRadar(maxAgeMinutes = MAX_AGE_MINUTES) {
     mode: 'standalone-no-wordpress-admin',
     note: 'Dashboard extern: nu modifică WordPress, nu cere pluginuri și scanează doar conținut public.',
     dataQuality: {
-      googleTrends: 'Dacă nu setezi GOOGLE_TRENDS_RSS_URLS, aplicația folosește un fallback RSS public și Google News RSS. Pentru volum exact folosește un API SEO separat.',
+      googleTrends: 'Scanarea folosește RSS-uri directe de publicații românești. Google News RSS este opțional prin USE_GOOGLE_NEWS_RSS=1, deoarece poate răspunde cu HTTP 503 pe Render.',
       oficiuScan: 'Verificare publică: WP REST dacă este permis, search intern, sitemap și opțional Google CSE/SerpAPI.'
     },
     limits: {
@@ -219,8 +219,15 @@ async function buildRadar(maxAgeMinutes = MAX_AGE_MINUTES) {
 }
 
 async function fetchAllCandidateItems(sourceErrors, maxAgeMinutes = MAX_AGE_MINUTES) {
-  const urls = [...getTrendRssUrls(), ...getGoogleNewsRssUrls(maxAgeMinutes)];
-  const results = await mapLimit(urls, 2, async (feed) => {
+  // 10 iunie 2026: Google News RSS răspunde cu HTTP 503 din Render pentru
+  // majoritatea interogărilor. De aceea sursa principală devine RSS-ul direct
+  // al publicațiilor, iar Google News rămâne opțional prin env USE_GOOGLE_NEWS_RSS=1.
+  const urls = [
+    ...getTrendRssUrls(),
+    ...getPublisherRssUrls(),
+    ...getGoogleNewsRssUrls(maxAgeMinutes)
+  ];
+  const results = await mapLimit(urls, 3, async (feed) => {
     try {
       const xml = await cached(`feed:${feed.url}`, Math.min(CACHE_TTL_MS, 5 * 60 * 1000), () => fetchText(feed.url));
       return parseRssItems(xml).map((item) => ({ ...item, feedType: feed.type, feedUrl: feed.url, feedLabel: feed.label }));
@@ -245,7 +252,33 @@ function getTrendRssUrls() {
   return urls.map((url) => ({ type: 'trends', label: 'Google Trends RSS', url }));
 }
 
+
+function getPublisherRssUrls() {
+  const configured = process.env.PUBLISHER_RSS_URLS;
+  const urls = configured
+    ? configured.split(',').map((u) => u.trim()).filter(Boolean).map((url, index) => ({ label: `RSS personalizat ${index + 1}`, url }))
+    : [
+        { label: 'RSS · Digi24', url: 'https://www.digi24.ro/rss_files/google_news.xml' },
+        { label: 'RSS · HotNews', url: 'https://rss.hotnews.ro/' },
+        { label: 'RSS · G4Media', url: 'https://www.g4media.ro/feed' },
+        { label: 'RSS · Economedia', url: 'https://economedia.ro/feed' },
+        { label: 'RSS · Edupedu', url: 'https://www.edupedu.ro/feed/' },
+        { label: 'RSS · Libertatea', url: 'https://www.libertatea.ro/feed' },
+        { label: 'RSS · Europa FM', url: 'https://www.europafm.ro/feed/' },
+        { label: 'RSS · Mediafax', url: 'https://www.mediafax.ro/rss' },
+        { label: 'RSS · Stirile ProTV', url: 'https://stirileprotv.ro/rss' },
+        { label: 'RSS · Observator', url: 'https://observatornews.ro/rss' },
+        { label: 'RSS · Antena 3 CNN', url: 'https://www.antena3.ro/rss' },
+        { label: 'RSS · News.ro', url: 'https://www.news.ro/rss' }
+      ];
+
+  return urls.map((feed) => ({ type: 'publisher-rss', label: feed.label, url: feed.url }));
+}
+
 function getGoogleNewsRssUrls(maxAgeMinutes = MAX_AGE_MINUTES) {
+  // Google News RSS poate răspunde cu HTTP 503 pe Render. Îl ținem oprit implicit.
+  // Dacă vrei să-l reactivezi: Environment -> USE_GOOGLE_NEWS_RSS=1.
+  if (String(process.env.USE_GOOGLE_NEWS_RSS || '0') !== '1') return [];
   // PRO: interogări orientate pe România și pe temele editoriale cu impact.
   // Evităm feedul generic mare, pentru că aduce sport extern și surse vechi.
   const whenHours = Math.max(1, Math.ceil(maxAgeMinutes / 60));
