@@ -111,21 +111,12 @@ function bindEvents() {
     if (!button) return;
     const topic = state.topics.find((item) => item.id === button.dataset.id);
     if (!topic) return;
-    if (button.dataset.action === 'brief') showBrief(topic);
-    if (button.dataset.action === 'titles') showTitles(topic);
-    if (button.dataset.action === 'contacts') showContactsAndDrafts(topic);
-    if (button.dataset.action === 'draft') {
-      try {
-        showCopyPasteDraft(topic);
-      } catch (error) {
-        console.error('Eroare draft local', error);
-        el.dialogTitle.textContent = 'Draft local';
-        el.dialogBody.innerHTML = `<p class="error"><strong>Draftul nu s-a putut genera.</strong> ${escapeHtml(error.message || 'Eroare necunoscută')}</p>`;
-        openDialog();
-      }
+
+    const conceptActions = ['brief', 'titles', 'contacts', 'links', 'draft'];
+    if (conceptActions.includes(button.dataset.action)) {
+      showApiConceptNotice(button.dataset.action, topic);
+      return;
     }
-    if (button.dataset.action === 'links') showLinksAndImages(topic);
-    if (button.dataset.action === 'copy-ai') copyTopicForAI(topic, button);
   });
 }
 
@@ -494,9 +485,85 @@ function renderTopicCard(topic) {
 
       <div class="sources-list">${sourcesHtml || '<span class="badge">Surse indisponibile</span>'}</div>
 
+      <div class="card-actions">
+        <button class="btn btn-primary" type="button" data-action="brief" data-id="${escapeAttr(topic.id)}">Brief</button>
+        <button class="btn" type="button" data-action="titles" data-id="${escapeAttr(topic.id)}">SEO complet</button>
+        <button class="btn" type="button" data-action="contacts" data-id="${escapeAttr(topic.id)}">Contacte + drafturi</button>
+        <button class="btn" type="button" data-action="links" data-id="${escapeAttr(topic.id)}">Linkuri + surse</button>
+        <button class="btn" type="button" data-action="draft" data-id="${escapeAttr(topic.id)}">Draft</button>
+      </div>
+
       ${renderOnlineArticleLinks(topic)}
     </article>
   `;
+}
+
+
+function getApiFeatureLabel(action) {
+  const labels = {
+    brief: 'Brief editorial',
+    titles: 'SEO complet',
+    contacts: 'Contacte + drafturi mail',
+    links: 'Linkuri + surse',
+    draft: 'Draft articol'
+  };
+  return labels[action] || 'Funcție editorială';
+}
+
+function showApiConceptNotice(action, topic) {
+  const label = getApiFeatureLabel(action);
+  const title = topic?.title || 'subiectul selectat';
+  el.dialogTitle.textContent = label;
+  el.dialogBody.innerHTML = `
+    <div class="concept-box">
+      <h3>Funcție concept — necesită API AI</h3>
+      <p><strong>${escapeHtml(label)}</strong> nu este activ în varianta curentă, pentru că ar trebui conectat un API AI real care să citească sursele, să înțeleagă contextul și să genereze text editorial corect.</p>
+      <p>Subiect selectat: <strong>${escapeHtml(title)}</strong></p>
+      <p>În versiunea dezvoltată, acest modul ar genera conținut după regulile redacției Oficiul de Știri: text umanizat, expresii-cheie reale, anti-duplicate, surse verificate și structură gata de lucru editorial.</p>
+      ${getApiFeatureDetails(action)}
+      <p class="muted">Pentru activare este nevoie de integrare API AI + cost lunar de rulare. Radarul rămâne funcțional pentru scanarea știrilor și identificarea subiectelor apărute recent.</p>
+    </div>
+  `;
+  openDialog();
+}
+
+function getApiFeatureDetails(action) {
+  if (action === 'brief') {
+    return `<ul>
+      <li>ar identifica unghiul editorial real, diferit de preluarea din presă;</li>
+      <li>ar explica ce contează pentru cititorii din România;</li>
+      <li>ar separa faptele confirmate de reacții, context și pașii următori.</li>
+    </ul>`;
+  }
+  if (action === 'titles') {
+    return `<ul>
+      <li>ar propune titluri SEO umane, nu variații mecanice;</li>
+      <li>ar genera focus keyword, slug, meta description și H2-uri indexabile;</li>
+      <li>ar folosi expresii-cheie naturale, de tipul celor căutate pe Google.</li>
+    </ul>`;
+  }
+  if (action === 'contacts') {
+    return `<ul>
+      <li>ar alege instituția sau persoana relevantă pentru fiecare subiect;</li>
+      <li>ar genera întrebări diferite pentru Guvern, MAE, Parchet, club sportiv, minister sau sursa inițială;</li>
+      <li>ar produce drafturi de solicitare clare, fără întrebări identice peste tot.</li>
+    </ul>`;
+  }
+  if (action === 'links') {
+    return `<ul>
+      <li>ar sugera surse externe relevante și linkuri interne Oficiul fără dublură de unghi;</li>
+      <li>ar separa sursa inițială de reacții, documente oficiale și context;</li>
+      <li>ar putea include recomandări de imagini legale doar după verificare.</li>
+    </ul>`;
+  }
+  if (action === 'draft') {
+    return `<ul>
+      <li>ar scrie un draft de articol publicabil, nu instrucțiuni pentru editor;</li>
+      <li>ar integra expresii-cheie în primele 300–400 de cuvinte;</li>
+      <li>ar păstra stilul Oficiul de Știri și ar evita formulările de tip Copilot.</li>
+    </ul>`;
+  }
+  return '';
 }
 
 
