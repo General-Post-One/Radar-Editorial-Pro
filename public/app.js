@@ -139,7 +139,7 @@ async function loadRadar(forceFresh) {
     if (forceFresh) params.set('fresh', '1');
     params.set('maxAge', String(maxAge));
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
+    const timeout = setTimeout(() => controller.abort(), 25000);
     const response = await fetch(`/api/radar?${params.toString()}`, { cache: 'no-store', signal: controller.signal });
     clearTimeout(timeout);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -162,8 +162,8 @@ async function loadRadar(forceFresh) {
     state.topics = Array.from(state.topicStore.values());
     state.lastUpdate = new Date(fallback.generatedAt);
     state.stats = fallback.stats;
-    state.sourceErrors = [{ source: 'API local', error: 'Nu s-a putut apela backendul. Rulează node server.js.' }];
-    el.sourceNotice.innerHTML = `<strong>Mod demo:</strong> backendul nu răspunde. Rulează <code>node server.js</code> ca să scanezi live surse publice.`;
+    state.sourceErrors = [{ source: 'API live', error: 'Backendul nu a răspuns la timp sau Render a returnat 502. Apasă Refresh live peste câteva secunde.' }];
+    el.sourceNotice.innerHTML = `<strong>Scanare întreruptă:</strong> backendul nu a răspuns la timp. Render poate fi în cold start sau o sursă externă răspunde greu. Apasă din nou Refresh live.`;
     render();
   } finally {
     setLoading(false);

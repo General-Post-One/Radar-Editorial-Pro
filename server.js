@@ -46,12 +46,15 @@ const MAX_AGE_MINUTES = Number(process.env.MAX_AGE_MINUTES || 120);
 const MAX_TOPICS = Number(process.env.MAX_TOPICS || 60);
 const MIN_SCAN_MINUTES = 60;
 const MAX_SCAN_MINUTES = 24 * 60;
-const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 7000);
-const FEED_CONCURRENCY = Number(process.env.FEED_CONCURRENCY || 10);
+const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 4500);
+const FEED_CONCURRENCY = Number(process.env.FEED_CONCURRENCY || 12);
 const USER_AGENT = process.env.USER_AGENT || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const STRICT_SOURCE_AGE = String(process.env.STRICT_SOURCE_AGE || '1') !== '0';
 const FAST_OFICIU_SCAN = String(process.env.FAST_OFICIU_SCAN || '1') !== '0';
 const AUTO_REFRESH_MINUTES = Number(process.env.AUTO_REFRESH_MINUTES || 3);
+const COVERAGE_QUERY_LIMIT = Number(process.env.COVERAGE_QUERY_LIMIT || 2);
+const SCAN_TOPIC_LIMIT = Number(process.env.SCAN_TOPIC_LIMIT || 24);
+const DISABLE_GOOGLE_NEWS_ONLINE = String(process.env.DISABLE_GOOGLE_NEWS_ONLINE || '1') !== '0';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -136,6 +139,8 @@ async function route(req, res) {
       autoRefreshMinutes: AUTO_REFRESH_MINUTES,
       requestTimeoutMs: REQUEST_TIMEOUT_MS,
       feedConcurrency: FEED_CONCURRENCY,
+      coverageQueryLimit: COVERAGE_QUERY_LIMIT,
+      scanTopicLimit: SCAN_TOPIC_LIMIT,
       supportedScanIntervalsMinutes: [60, 120, 180, 240, 360, 480, 720, 1440]
     });
   }
@@ -185,9 +190,9 @@ async function buildRadar(maxAgeMinutes = MAX_AGE_MINUTES) {
   const freshGroups = grouped
     .filter((topic) => topic.startedMinutesAgo <= maxAgeMinutes)
     .sort((a, b) => b.preCoveragePriority - a.preCoveragePriority)
-    .slice(0, MAX_TOPICS);
+    .slice(0, Math.min(MAX_TOPICS, SCAN_TOPIC_LIMIT));
 
-  const enriched = await mapLimit(freshGroups, 6, async (topic) => enrichTopicWithCoverage(topic, maxAgeMinutes));
+  const enriched = await mapLimit(freshGroups, 5, async (topic) => enrichTopicWithCoverage(topic, maxAgeMinutes));
 
   const sorted = enriched.sort((a, b) => b.priorityScore - a.priorityScore);
   const eligible = sorted.filter((topic) => topic.eligibility.isEligible);
@@ -208,7 +213,9 @@ async function buildRadar(maxAgeMinutes = MAX_AGE_MINUTES) {
       maxTopics: MAX_TOPICS,
       cacheTtlMinutes: Math.round(CACHE_TTL_MS / 60000),
       requestTimeoutMs: REQUEST_TIMEOUT_MS,
-      feedConcurrency: FEED_CONCURRENCY
+      feedConcurrency: FEED_CONCURRENCY,
+      coverageQueryLimit: COVERAGE_QUERY_LIMIT,
+      scanTopicLimit: SCAN_TOPIC_LIMIT
     },
     stats: {
       rawItems: rawItems.length,
@@ -538,8 +545,8 @@ async function enrichTopicWithCoverage(topic, maxAgeMinutes = MAX_AGE_MINUTES) {
 }
 
 async function checkOficiuCoverage(topic, options = {}) {
-  const queries = buildCoverageQueries(topic);
   const deepScan = Boolean(options.deep);
+  const queries = buildCoverageQueries(topic).slice(0, deepScan ? 8 : COVERAGE_QUERY_LIMIT);
   const maxAgeMinutes = Number(options.maxAgeMinutes || MAX_AGE_MINUTES);
   const errors = [];
   const matches = [];
@@ -560,7 +567,18 @@ async function checkOficiuCoverage(topic, options = {}) {
   const sitemapMatches = (!FAST_OFICIU_SCAN || deepScan) ? await fetchSitemapCandidates(topic, errors) : [];
   matches.push(...sitemapMatches);
 
-  const onlineArticles = await fetchGoogleNewsOnlineArticles(topic, errors, maxAgeMinutes);
+  const onlineArticles = DISABLE_GOOGLE_NEWS_ONLINE
+    ? {
+        count: Array.isArray(topic.sources) ? topic.sources.length : 0,
+        matches: (topic.sources || []).slice(0, 10).map((s) => ({
+          source: s.name || s.source || 'Sursă',
+          title: s.title || topic.title || '',
+          url: s.url || '',
+          publishedAt: s.publishedAt || s.pubDate || '',
+          similarity: 100
+        }))
+      }
+    : await fetchGoogleNewsOnlineArticles(topic, errors, maxAgeMinutes);
 
   const deduped = uniqueBy(matches, (m) => m.url || `${m.source}|${m.title}`)
     .filter((m) => m.title || m.slug || m.url)
