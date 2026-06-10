@@ -115,6 +115,7 @@ function bindEvents() {
     if (button.dataset.action === 'brief') showBrief(topic);
     if (button.dataset.action === 'titles') showTitles(topic);
     if (button.dataset.action === 'contacts') showContactsAndDrafts(topic);
+    if (button.dataset.action === 'prompt') showGptArticlePrompt(topic);
     if (button.dataset.action === 'draft') showCopyPasteDraft(topic);
     if (button.dataset.action === 'links') showLinksAndImages(topic);
   });
@@ -498,6 +499,7 @@ function renderTopicCard(topic) {
         <button class="btn" data-action="contacts" data-id="${escapeAttr(topic.id)}" type="button">Contacte + drafturi</button>
         <button class="btn" data-action="links" data-id="${escapeAttr(topic.id)}" type="button">Linkuri + poze</button>
         <button class="btn" data-action="draft" data-id="${escapeAttr(topic.id)}" type="button">Draft</button>
+        <button class="btn btn-primary" data-action="prompt" data-id="${escapeAttr(topic.id)}" type="button">Prompt articol</button>
       </div>
     </article>
   `;
@@ -647,7 +649,7 @@ function showCopyPasteDraft(topic) {
   const draft = buildLocalCopyPasteDraft(topic);
   el.dialogTitle.textContent = 'Draft local';
   el.dialogBody.innerHTML = `
-    <p class="muted">Draft local rapid, adaptat pe subiect. Verifică informațiile din sursele oficiale înainte de publicare.</p>
+    <p class="muted">Draft local rapid, fără AI. Pentru articol final de calitate, folosește butonul „Prompt articol”.</p>
     <textarea class="draft-textarea large" readonly>${escapeHtml(draft)}</textarea>
     <div class="dialog-actions">
       <button class="btn btn-primary" type="button" onclick="navigator.clipboard.writeText(this.closest('.dialog-body').querySelector('textarea').value)">Copiază draftul</button>
@@ -659,11 +661,7 @@ function showCopyPasteDraft(topic) {
 function showLinksAndImages(topic) {
   const externals = chooseExternalLinks(topic);
   const internal = chooseInternalLinks(topic);
-  const cleanImageTerm = buildLegalImageSearchTerm(topic);
-  const googleImagesQuery = encodeURIComponent(`${cleanImageTerm} imagine oficială OR fotografie oficială`);
-  const wikimediaQuery = encodeURIComponent(`${cleanImageTerm} site:commons.wikimedia.org`);
-  const officialQuery = encodeURIComponent(`${cleanImageTerm} site:gov.ro OR site:mai.gov.ro OR site:mapn.ro OR site:europa.eu OR site:airbus.com`);
-  const broadQuery = encodeURIComponent(`${cleanImageTerm} Wikimedia Commons instituție oficială fotografie`);
+  const imageQuery = encodeURIComponent(`${topic.title} ${topic.category || ''} Wikimedia Commons site:commons.wikimedia.org OR site:gov.ro OR site:europa.eu`);
   el.dialogTitle.textContent = 'Linkuri + poze legale';
   el.dialogBody.innerHTML = `
     <h3>2 linkuri externe recomandate</h3>
@@ -671,14 +669,8 @@ function showLinksAndImages(topic) {
     <h3>2 linkuri interne Oficiul de Știri recomandate</h3>
     <ol>${internal.map((l) => `<li><a href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.anchor)}</a> — ${escapeHtml(l.url)}</li>`).join('') || '<li>Nu am găsit două linkuri interne clare. Caută manual pe Oficiul de Știri.</li>'}</ol>
     <h3>Poze legale</h3>
-    <p>Caută două imagini: main + după șapou. Butoanele de mai jos folosesc o căutare curățată, fără BREAKING și fără titlul lung, ca să nu mai dea pagina fără rezultate.</p>
-    <p><strong>Căutare folosită:</strong> ${escapeHtml(cleanImageTerm)}</p>
-    <div class="dialog-actions">
-      <a class="btn btn-primary" href="https://www.google.com/search?tbm=isch&q=${googleImagesQuery}" target="_blank" rel="noopener noreferrer">Google Imagini</a>
-      <a class="btn" href="https://www.google.com/search?q=${wikimediaQuery}" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a>
-      <a class="btn" href="https://www.google.com/search?q=${officialQuery}" target="_blank" rel="noopener noreferrer">Surse oficiale</a>
-      <a class="btn" href="https://www.google.com/search?q=${broadQuery}" target="_blank" rel="noopener noreferrer">Căutare largă</a>
-    </div>
+    <p>Caută două imagini: main + după șapou. Preferă Wikimedia Commons, instituții oficiale, Guvern, Parlament, UE, NATO, ministere, cluburi, comunicate oficiale.</p>
+    <p><a class="btn" href="https://www.google.com/search?q=${imageQuery}" target="_blank" rel="noopener noreferrer">Caută poze legale</a></p>
     <h4>Checklist imagine</h4>
     <ul>
       <li>pagina exactă;</li>
@@ -690,28 +682,6 @@ function showLinksAndImages(topic) {
     </ul>
   `;
   openDialog();
-}
-
-function buildLegalImageSearchTerm(topic) {
-  const raw = `${topic.title || ''} ${(topic.entities || []).join(' ')} ${topic.category || ''}`;
-  let clean = raw
-    .replace(/\b(BREAKING|UPDATE|LIVE|VIDEO|FOTO|EXCLUSIV)\b/gi, ' ')
-    .replace(/https?:\/\/\S+/gi, ' ')
-    .replace(/[„”"'’‘!?.,:;()\[\]{}]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const normalized = normalize(clean);
-  if (/airbus|elicopter|helicopter/.test(normalized)) return 'Airbus elicopter MAI România';
-  if (/ministerul de interne|mai|politie|jandarmerie/.test(normalized)) return 'Ministerul Afacerilor Interne România clădire oficială';
-  if (/guvern|premier/.test(normalized)) return 'Guvernul României clădire oficială';
-  if (/parlament|deputat|senat/.test(normalized)) return 'Parlamentul României clădire oficială';
-  if (/meteo|anm|furtuni|cod galben|vijelii|grindina/.test(normalized)) return 'Administrația Națională de Meteorologie hartă avertizare';
-
-  const words = significantWordsClient(clean)
-    .filter((word) => !['breaking', 'update', 'live', 'video', 'foto', 'actualitate'].includes(word))
-    .slice(0, 6);
-  return removeDiacritics(words.join(' ') || clean || 'România instituție oficială').trim();
 }
 
 function buildGptArticlePrompt(topic) {
@@ -819,163 +789,36 @@ Checklist final:
 
 function buildLocalCopyPasteDraft(topic) {
   const focusKeyword = buildFocusKeyword(topic);
-  const title = topic.seoTitle || buildSeoHeadline(topic);
-  const h2 = buildDraftH2s(topic);
-  const seoExpressions = buildSeoExpressions(topic);
-  return `${title}
+  return `${topic.seoTitle || buildSeoHeadline(topic)}
 
 ${buildLead(topic)}
 
 ## Pe scurt
 
-${buildPeScurtText(topic)}
+- Subiect detectat în intervalul ales: ${formatMinutes(topic.startedMinutesAgo)}.
+- Surse detectate de radar: ${formatSourceCount(topic.sourceCount || (topic.sources || []).length)}.
+- Acoperire Oficiul de Știri: ${(topic.coverage || {}).label || 'Neacoperit'}.
+- Risc editorial: ${topic.risk || 'mediu'}.
 
-## ${h2.context}
+## De ce contează
 
-${buildContextParagraph(topic)}
+${topic.reason || 'Subiectul poate avea miză pentru publicul din România, dar trebuie verificat din surse oficiale și completat cu un unghi editorial propriu.'}
 
-## ${h2.impact}
+## Ce înseamnă pentru cititor
 
-${buildReaderImpactParagraph(topic)}
+Aici trebuie explicat efectul practic: bani, timp, drepturi, siguranță, servicii publice, educație, sănătate sau consecințe politice, în funcție de subiect.
 
-## ${h2.verify}
+## Ce urmează
 
-${buildVerificationParagraph(topic)}
+Următorul pas este confirmarea informației din surse oficiale și, dacă este cazul, solicitarea unui punct de vedere.
 
 SEO:
 Focus keyword: ${focusKeyword}
 Meta: ${buildMetaClient(topic, focusKeyword)}
 Categorie: ${topic.wpCategory || topic.category || 'Actualitate'}
 Taguri: ${buildTags(topic).join(', ')}
-Expresii naturale de indexare: ${seoExpressions.join(' | ')}
 
-Notă redacțională: verifică sursa primară înainte de publicare, apoi folosește paragrafele de mai sus ca bază pentru articolul final în stil Oficiul de Știri.`;
-}
-
-function buildDraftH2s(topic) {
-  const text = normalize(`${topic.title} ${topic.interest} ${(topic.keywords || []).join(' ')}`);
-  if (/airbus|elicopter|ministerul de interne|\bmai\b|aviatie|aeronave/.test(text)) {
-    return {
-      context: 'Contractul cu Airbus și întrebarea despre dotarea MAI',
-      impact: 'Cine poate fi afectat de noile elicoptere ale Ministerului de Interne',
-      verify: 'Ce trebuie confirmat înainte de publicare'
-    };
-  }
-  if (/rusia|ucraina|sancțiuni|sanctiuni|iran|sua|nato|ue|uniunea europeana/.test(text)) {
-    return {
-      context: 'Decizia externă și legătura directă cu România',
-      impact: 'Efectele posibile pentru securitate, energie și prețuri',
-      verify: 'Documentele și reacțiile care trebuie urmărite'
-    };
-  }
-  if (/meteo|anm|furtun|vijelie|grindin|cod galben|cod portocaliu|ploi/.test(text)) {
-    return {
-      context: 'Avertizarea meteo și zonele vizate',
-      impact: 'Ce trebuie să știe oamenii din județele afectate',
-      verify: 'Intervalul oficial și următoarea actualizare ANM'
-    };
-  }
-  if (/pensii|salarii|taxe|tva|anaf|facturi|energie|preturi|prețuri|buget/.test(text)) {
-    return {
-      context: 'Schimbarea anunțată și efectul în bani',
-      impact: 'Cine plătește, cine câștigă și cine trebuie să fie atent',
-      verify: 'Termenele și documentele oficiale de verificat'
-    };
-  }
-  if (/guvern|premier|parlament|ministru|lege|motiune|moțiune|alegeri|partid/.test(text)) {
-    return {
-      context: 'Decizia politică și calculele din spate',
-      impact: 'Cum poate ajunge subiectul la oameni',
-      verify: 'Următorul pas instituțional'
-    };
-  }
-  if (/bac|evaluare|scoala|școală|admitere|elev|educatie|educație/.test(text)) {
-    return {
-      context: 'Calendarul educațional și informația verificată',
-      impact: 'Ce trebuie să știe elevii și părinții',
-      verify: 'Unde apar documentele oficiale'
-    };
-  }
-  return {
-    context: 'Ce s-a întâmplat și de unde vine informația',
-    impact: 'Ce înseamnă concret pentru cititori',
-    verify: 'Ce trebuie verificat înainte de publicare'
-  };
-}
-
-function buildPeScurtText(topic) {
-  const minutes = formatMinutes(topic.startedMinutesAgo);
-  const sources = formatSourceCount(topic.sourceCount || (topic.sources || []).length);
-  const coverage = (topic.coverage || {}).label || 'Neacoperit';
-  const risk = topic.risk || 'mediu';
-  return `Subiectul a fost detectat în ultimele ${minutes}, apare în ${sources} și este marcat de radar ca ${coverage}. Riscul editorial este ${risk}, deci articolul trebuie construit pe surse primare, nu doar pe preluări.`;
-}
-
-function buildContextParagraph(topic) {
-  const title = cleanTitleClient(topic.title);
-  const text = normalize(`${topic.title} ${topic.interest} ${(topic.keywords || []).join(' ')}`);
-  if (/airbus|elicopter|ministerul de interne|\bmai\b|aviatie|aeronave/.test(text)) {
-    return `Informația despre **${title}** trebuie tratată ca subiect de dotare publică, nu doar ca anunț de contract. Partea importantă este dacă noile elicoptere schimbă capacitatea de intervenție a Ministerului de Interne, cât costă programul și când intră efectiv aparatele în serviciu.`;
-  }
-  if (/rusia|ucraina|sancțiuni|sanctiuni|iran|sua|nato|ue|uniunea europeana/.test(text)) {
-    return `În cazul **${title}**, unghiul bun nu este simpla revistă a presei, ci legătura cu România: securitatea regională, deciziile UE/NATO, energia, transporturile și eventualele efecte economice. Cititorul trebuie să înțeleagă rapid dacă vorbim despre o decizie politică, o escaladare militară sau doar o etapă diplomatică.`;
-  }
-  if (/meteo|anm|furtun|vijelie|grindin|cod galben|cod portocaliu|ploi/.test(text)) {
-    return `Pentru **${title}**, informația utilă este locală și practică: județele vizate, intervalul, fenomenele anunțate și recomandările autorităților. Materialul trebuie actualizat doar după verificarea avertizării oficiale ANM sau a comunicatelor ISU.`;
-  }
-  if (/pensii|salarii|taxe|tva|anaf|facturi|energie|preturi|prețuri|buget/.test(text)) {
-    return `La **${title}**, cititorul caută efectul în bani: cine plătește, cine primește, de când se aplică și ce document oficial confirmă schimbarea. Evită formularea generală și explică exact scenariul care îl poate afecta pe om.`;
-  }
-  return `Subiectul **${title}** trebuie verificat din sursele indicate de radar și completat cu un unghi propriu. Nu este suficientă preluarea titlului: articolul trebuie să explice contextul, persoanele afectate și următorul pas verificabil.`;
-}
-
-function buildReaderImpactParagraph(topic) {
-  const text = normalize(`${topic.title} ${topic.interest} ${(topic.keywords || []).join(' ')}`);
-  if (/airbus|elicopter|ministerul de interne|\bmai\b|aviatie|aeronave/.test(text)) {
-    return `Pentru cititori, **contractul Airbus pentru elicoptere** contează prin efectul posibil asupra intervențiilor de urgență, misiunilor aeriene, transportului medical și operațiunilor în zone greu accesibile. Merită precizat dacă aparatele sunt pentru Poliție, SMURD, aviația MAI sau altă structură, ca să nu rămână articolul la nivel de anunț tehnic.`;
-  }
-  if (/rusia|ucraina|sancțiuni|sanctiuni|iran|sua|nato|ue|uniunea europeana/.test(text)) {
-    return `Pentru publicul din România, subiectul poate conta prin **noi sancțiuni împotriva Rusiei**, costuri economice, securitate la granița de est sau poziționarea României în UE și NATO. Dacă informația nu are efect direct, spune clar acest lucru și explică de ce totuși merită urmărită.`;
-  }
-  if (/meteo|anm|furtun|vijelie|grindin|cod galben|cod portocaliu|ploi/.test(text)) {
-    return `Cititorii vor să știe rapid dacă sunt în zona vizată, la ce oră începe riscul și ce fenomene pot apărea: **ploi torențiale, vijelii și grindină**. Include recomandări simple: evitarea deplasărilor inutile, protejarea mașinilor și verificarea actualizărilor oficiale.`;
-  }
-  if (/pensii|salarii|taxe|tva|anaf|facturi|energie|preturi|prețuri|buget/.test(text)) {
-    return `Efectul practic trebuie explicat în termeni simpli: bani în plus sau în minus, termen de aplicare, cine intră în categorie și ce pași trebuie făcuți. Pentru indexare, folosește natural expresii precum **ce se schimbă pentru români** și **când se aplică măsura**.`;
-  }
-  return `Pentru cititor, contează consecința practică: bani, timp, siguranță, drepturi, servicii publice sau decizie politică. Textul final trebuie să răspundă la întrebarea simplă: ce trebuie să știe omul acum și ce poate urma în următoarele ore sau zile.`;
-}
-
-function buildVerificationParagraph(topic) {
-  const sourceNames = (topic.sources || []).map((s) => s.name || domainFromUrlClient(s.url || '')).filter(Boolean).slice(0, 2);
-  const sources = sourceNames.length ? sourceNames.join(' și ') : 'sursele primare indicate în card';
-  const text = normalize(`${topic.title} ${topic.interest} ${(topic.keywords || []).join(' ')}`);
-  if (/airbus|elicopter|ministerul de interne|\bmai\b|aviatie|aeronave/.test(text)) {
-    return `Înainte de publicare, verifică la Ministerul Afacerilor Interne, Airbus și, dacă există, în SEAP sau în comunicatul oficial: valoarea contractului, numărul de aparate, termenul de livrare și instituția beneficiară. Nu scrie că elicopterele sunt deja livrate dacă sursa spune doar că a fost semnat contractul.`;
-  }
-  if (/rusia|ucraina|sancțiuni|sanctiuni|iran|sua|nato|ue|uniunea europeana/.test(text)) {
-    return `Confirmarea trebuie să vină din documente UE/NATO, comunicate guvernamentale sau declarații oficiale, nu doar din ${sources}. Separă clar ce este decizie adoptată, ce este propunere și ce este scenariu discutat diplomatic.`;
-  }
-  if (/meteo|anm|furtun|vijelie|grindin|cod galben|cod portocaliu|ploi/.test(text)) {
-    return `Verificarea se face pe avertizarea ANM și pe comunicările ISU/DSU. Trebuie confirmate județele, intervalul orar, fenomenele și eventualele actualizări, pentru că alertele meteo se schimbă rapid.`;
-  }
-  return `Verificarea minimă: sursa primară, data publicării, documentul oficial, reacția instituției vizate și riscul de duplicare pe Oficiul de Știri. Sursele detectate acum sunt: ${sources}.`;
-}
-
-function buildSeoExpressions(topic) {
-  const text = normalize(`${topic.title} ${topic.interest} ${(topic.keywords || []).join(' ')}`);
-  const focus = buildFocusKeyword(topic);
-  const expressions = [focus];
-  if (/airbus|elicopter|ministerul de interne|\bmai\b|aviatie|aeronave/.test(text)) expressions.push('contract Airbus elicoptere MAI', 'Ministerul de Interne elicoptere Airbus', 'elicoptere noi pentru MAI');
-  else if (/rusia|ucraina|sancțiuni|sanctiuni|iran|sua|nato|ue|uniunea europeana/.test(text)) expressions.push('noi sanctiuni impotriva Rusiei', 'ce pregateste UE', 'impact pentru Romania');
-  else if (/meteo|anm|furtun|vijelie|grindin|cod galben|cod portocaliu|ploi/.test(text)) expressions.push('cod galben de furtuni', 'zone vizate de vijelii', 'avertizare ANM');
-  else if (/pensii|salarii|taxe|tva|anaf|facturi|energie|preturi|prețuri|buget/.test(text)) expressions.push('ce se schimba pentru romani', 'cand se aplica masura', 'impact in bani');
-  else expressions.push('ce se stie pana acum', 'ce urmeaza', 'impact pentru romani');
-  return Array.from(new Set(expressions.filter(Boolean))).slice(0, 6);
-}
-
-function cleanTitleClient(title) {
-  return String(title || '').replace(/^\s*(BREAKING|LIVE|UPDATE|VIDEO|FOTO)\s*[:\-–|]?\s*/i, '').replace(/\s+/g, ' ').trim();
+Notă: acesta este draft local. Pentru articol final în stil Oficiul de Știri, folosește „Prompt articol”.`;
 }
 
 function chooseExternalLinks(topic) {
@@ -1052,22 +895,7 @@ function openDialog() {
 }
 
 function buildLead(topic) {
-  const title = cleanTitleClient(topic.title);
-  const score = topic.priorityScore || topic.score || 0;
-  const text = normalize(`${topic.title} ${topic.interest} ${(topic.keywords || []).join(' ')}`);
-  if (/airbus|elicopter|ministerul de interne|\bmai\b|aviatie|aeronave/.test(text)) {
-    return `**Ministerul de Interne a semnat un contract cu Airbus pentru elicoptere**, potrivit surselor monitorizate de radar. Subiectul trebuie verificat din comunicatul oficial, pentru că partea importantă este cine primește aparatele, cât costă programul și când pot fi folosite în intervenții.`;
-  }
-  if (/rusia|ucraina|sancțiuni|sanctiuni|iran|sua|nato|ue|uniunea europeana/.test(text)) {
-    return `**${title}** intră în zona știrilor externe care pot avea efect și în România. Înainte de publicare, trebuie separat ce este decizie oficială de ce este scenariu diplomatic, mai ales când subiectul atinge UE, NATO, Rusia, Ucraina sau Orientul Mijlociu.`;
-  }
-  if (/meteo|anm|furtun|vijelie|grindin|cod galben|cod portocaliu|ploi/.test(text)) {
-    return `**${title}** este o informație de utilitate imediată pentru cititori. Materialul trebuie să spună clar zonele vizate, intervalul avertizării și fenomenele anunțate, după verificarea pe sursa oficială ANM.`;
-  }
-  if (/pensii|salarii|taxe|tva|anaf|facturi|energie|preturi|prețuri|buget/.test(text)) {
-    return `**${title}** trebuie explicat prin efectul direct asupra oamenilor: bani, termene, obligații și excepții. Scorul de prioritate este ${score}/100, dar publicarea are sens doar dacă există document oficial sau confirmare clară.`;
-  }
-  return `**${title}** este monitorizat ca posibil subiect de interes pentru români, cu scor de prioritate ${score}/100. Înainte de publicare, verifică sursa primară, apoi construiește articolul pe efectul concret pentru cititor, nu pe o simplă preluare.`;
+  return `Subiectul „${topic.title}” este monitorizat ca posibilă știre de interes pentru români, cu scor de prioritate ${topic.priorityScore}/100. Înainte de publicare, informația trebuie verificată din sursele indicate și completată cu un unghi editorial propriu.`;
 }
 
 async function runManualCheck() {
@@ -1137,14 +965,10 @@ function inferNextStep(topic) {
 }
 
 function buildSeoHeadline(topic) {
-  const base = cleanTitleClient((topic.title || '').replace(/[.!?]+$/, ''));
-  const text = normalize(`${topic.title} ${topic.interest} ${(topic.keywords || []).join(' ')}`);
-  if (/airbus|elicopter|ministerul de interne|\bmai\b|aviatie|aeronave/.test(text)) return `${base}. Ce se știe despre contractul pentru elicoptere`;
-  if (/rusia|ucraina|sancțiuni|sanctiuni|iran|sua|nato|ue|uniunea europeana/.test(text)) return `${base}. Efectul posibil pentru România`;
-  if (/meteo|anm|furtun|vijelie|grindin|cod galben|cod portocaliu|ploi/.test(text)) return `${base}. Zonele vizate și intervalul avertizării`;
+  const base = (topic.title || '').replace(/[.!?]+$/, '');
   if ((topic.interest || '') === 'Economie/Bani') return `${base}. Ce se schimbă în bani pentru români`;
-  if ((topic.interest || '') === 'Politică') return `${base}. Decizia politică și pasul următor`;
-  return `${base}. Ce se știe până acum`;
+  if ((topic.interest || '') === 'Politică') return `${base}. Miza politică și ce urmează`;
+  return `${base}. De ce contează pentru români`;
 }
 
 function buildFocusKeyword(topic) {

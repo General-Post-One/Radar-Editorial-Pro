@@ -1440,7 +1440,7 @@ function buildContactEmailBody(topic, contact) {
   const questions = buildContactQuestions(topic, contact);
   const roleLine = contact.role ? `Vă contactez în legătură cu aria dumneavoastră de competență: ${contact.role}.` : 'Vă contactez pentru o clarificare legată de un subiect de actualitate.';
   const competenceLine = contact.competence ? `Am considerat relevantă solicitarea deoarece ${contact.competence}` : '';
-  return [`Bună ziua,`, ``, `Sunt (numele tău), redactor la Oficiul de Știri.`, roleLine, ``, `Pregătesc un material despre: „${topic.title}”. ${competenceLine}`, `Pentru acuratețe, aș avea nevoie de câteva clarificări:`, ``, ...questions.map((q, i) => `${i + 1}. ${q}`), ``, `Dacă este posibil, vă rog să îmi transmiteți un răspuns în scris sau să îmi indicați persoana competentă pentru acest subiect.`, ``, `Menționez că nu voi atribui declarații care nu sunt confirmate explicit.`, ``, `Mulțumesc,`, `(numele tău)`, `Oficiul de Știri`].join('\n');
+  return [`Bună ziua,`, ``, `Sunt Horia Stoian, redactor la Oficiul de Știri.`, roleLine, ``, `Pregătesc un material despre: „${topic.title}”. ${competenceLine}`, `Pentru acuratețe, aș avea nevoie de câteva clarificări:`, ``, ...questions.map((q, i) => `${i + 1}. ${q}`), ``, `Dacă este posibil, vă rog să îmi transmiteți un răspuns în scris sau să îmi indicați persoana competentă pentru acest subiect.`, ``, `Menționez că nu voi atribui declarații care nu sunt confirmate explicit.`, ``, `Mulțumesc,`, `Horia Stoian`, `Oficiul de Știri`].join('\n');
 }
 
 function buildContactQuestions(topic, contact) {
