@@ -418,6 +418,7 @@ function groupCandidateItems(items, now, maxAgeMinutes = MAX_AGE_MINUTES) {
       name: item.source || item.feedLabel || inferHost(item.link) || 'Sursă',
       url: item.link || '#',
       title: item.title,
+      description: item.description || '',
       official: isOfficialUrl(item.link),
       publishedAt: item.pubDate,
       sourceAgeMinutes: ageMinutes,

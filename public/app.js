@@ -788,28 +788,44 @@ Checklist final:
 
 function buildLocalCopyPasteDraft(topic) {
   const focusKeyword = buildFocusKeyword(topic);
-  return `${topic.seoTitle || buildSeoHeadline(topic)}
+  const title = topic.seoTitle || buildSeoHeadline(topic);
+  const sources = Array.isArray(topic.sources) ? topic.sources.filter((s) => s && (s.title || s.description || s.name || s.url)).slice(0, 4) : [];
+  const mainSource = sources[0] || {};
+  const sourceName = mainSource.name || 'sursa citată de radar';
+  const lead = buildSourceBasedLead(topic, sources);
+  const sourceBullets = buildSourceFactBullets(topic, sources);
+  const context = buildSourceContextParagraph(topic, sources);
+  const next = buildNextStepsFromSources(topic, sources);
+  const externalLinks = chooseExternalLinks(topic);
+  const linksText = externalLinks.length
+    ? externalLinks.map((link, index) => `${index + 1}. ${link.anchor}: ${link.url}`).join('\n')
+    : '1. Adaugă linkul sursei principale după verificare.\n2. Adaugă link oficial dacă există comunicat/instituție.';
 
-${buildLead(topic)}
+  return `${title}
+
+${lead}
+
+## Ce s-a întâmplat, potrivit surselor găsite
+
+${context}
 
 ## Pe scurt
 
-- Subiect detectat în intervalul ales: ${formatMinutes(topic.startedMinutesAgo)}.
-- Surse detectate de radar: ${formatSourceCount(topic.sourceCount || (topic.sources || []).length)}.
-- Acoperire Oficiul de Știri: ${(topic.coverage || {}).label || 'Neacoperit'}.
-- Risc editorial: ${topic.risk || 'mediu'}.
+${sourceBullets}
 
-## De ce contează
+## Ce trebuie verificat înainte de publicare
 
-${topic.reason || 'Subiectul poate avea miză pentru publicul din România, dar trebuie verificat din surse oficiale și completat cu un unghi editorial propriu.'}
+- dacă informația este confirmată de o instituție oficială sau doar relatată de publicația citată;
+- ora exactă, locul și persoanele/instituțiile implicate;
+- eventuale reacții oficiale, documente, comunicate sau precizări noi;
+- dacă Oficiul de Știri a mai publicat deja un material pe același unghi.
 
-## Ce înseamnă pentru cititor
+## Ce urmează în cazul acestui subiect
 
-Aici trebuie explicat efectul practic: bani, timp, drepturi, siguranță, servicii publice, educație, sănătate sau consecințe politice, în funcție de subiect.
+${next}
 
-## Ce urmează
-
-Următorul pas este confirmarea informației din surse oficiale și, dacă este cazul, solicitarea unui punct de vedere.
+Linkuri externe de pus în articol:
+${linksText}
 
 SEO:
 Focus keyword: ${focusKeyword}
@@ -817,7 +833,77 @@ Meta: ${buildMetaClient(topic, focusKeyword)}
 Categorie: ${topic.wpCategory || topic.category || 'Actualitate'}
 Taguri: ${buildTags(topic).join(', ')}
 
-Notă: acesta este draft local. Pentru articol final în stil Oficiul de Știri, folosește „Prompt articol”.`;
+Notă: draft generat local pe baza titlurilor, descrierilor și linkurilor detectate de radar. Verifică sursa înainte de publicare, mai ales dacă există o singură sursă.`;
+}
+
+function buildSourceBasedLead(topic, sources) {
+  const title = cleanupSentence(topic.title || topic.seoTitle || '');
+  const sourceName = sources[0]?.name || 'sursele monitorizate';
+  const description = cleanupSentence(sources[0]?.description || '');
+  if (description && description.length > 40 && !isGenericSourceText(description)) {
+    return `Potrivit informațiilor publicate de ${sourceName}, ${lowercaseFirst(description)}. Subiectul a fost detectat în ultimele ${formatMinutes(topic.startedMinutesAgo)} și trebuie verificat înainte de publicare, mai ales dacă nu există încă o confirmare oficială.`;
+  }
+  return `Potrivit informațiilor publicate de ${sourceName}, ${lowercaseFirst(title)}. Subiectul a fost detectat în ultimele ${formatMinutes(topic.startedMinutesAgo)} și trebuie verificat înainte de publicare, mai ales dacă nu există încă o confirmare oficială.`;
+}
+
+function buildSourceFactBullets(topic, sources) {
+  const bullets = [];
+  if (sources.length) {
+    sources.slice(0, 4).forEach((source) => {
+      const name = source.name || 'Sursă';
+      const fact = cleanupSentence(source.description || source.title || topic.title || '');
+      const age = typeof source.sourceAgeMinutes === 'number' ? `, acum ${formatMinutes(source.sourceAgeMinutes)}` : '';
+      if (fact) bullets.push(`- ${name}${age}: ${fact}.`);
+    });
+  }
+  if (!bullets.length) bullets.push(`- Radarul a detectat subiectul: ${cleanupSentence(topic.title || '')}.`);
+  bullets.push(`- Subiectul apare în ${formatSourceCount(topic.sourceCount || sources.length)} monitorizate de radar.`);
+  bullets.push(`- Acoperire Oficiul de Știri: ${(topic.coverage || {}).label || 'Neacoperit'}.`);
+  return bullets.map((line) => line.replace(/\.\./g, '.')).join('\n');
+}
+
+function buildSourceContextParagraph(topic, sources) {
+  const title = cleanupSentence(topic.title || '');
+  const names = sources.map((s) => s.name).filter(Boolean).slice(0, 3);
+  const sourceText = names.length ? `Sursa detectată de radar este ${names.join(', ')}.` : 'Radarul nu are o sursă nominalizată clar în card.';
+  const details = sources.map((s) => cleanupSentence(s.description || s.title || '')).filter(Boolean);
+  const uniqueDetails = [...new Set(details)].slice(0, 2);
+  const detailText = uniqueDetails.length ? uniqueDetails.join(' ') : title;
+  return `${sourceText} Informația de bază este: ${detailText}. Materialul trebuie scris ca știre de actualitate, cu atribuire clară către sursa citată și fără concluzii care nu apar în datele disponibile.`;
+}
+
+function buildNextStepsFromSources(topic, sources) {
+  const text = normalize(`${topic.title || ''} ${(topic.keywords || []).join(' ')}`);
+  if (/injunghiat|crima|omor|accident|politia|isu|incendiu|violenta|amenintat/.test(text)) {
+    return 'Următorul pas este verificarea informației la Poliție, Parchet, ISU sau spital, în funcție de caz. Dacă există victimă, suspect sau anchetă, formulările trebuie să rămână prudente până la confirmarea oficială.';
+  }
+  if (/guvern|minister|lege|parlament|contract|airbus|licitatie|ordonanta/.test(text)) {
+    return 'Următorul pas este căutarea documentului oficial, a comunicatului instituției sau a contractului anunțat. Materialul trebuie completat cu valoare, calendar, beneficiari și eventuale reacții.';
+  }
+  if (/meteo|anm|cod galben|cod portocaliu|vreme|furtuni/.test(text)) {
+    return 'Următorul pas este verificarea hărții ANM, a intervalului exact și a județelor vizate, apoi actualizarea articolului dacă avertizarea se prelungește sau se modifică.';
+  }
+  return 'Următorul pas este verificarea sursei inițiale, căutarea unei confirmări oficiale și actualizarea articolului cu date noi dacă apar în următoarele minute.';
+}
+
+function cleanupSentence(text) {
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/[|•]+/g, ' ')
+    .trim()
+    .replace(/[.!?]+$/g, '');
+}
+
+function lowercaseFirst(text) {
+  const clean = cleanupSentence(text);
+  if (!clean) return '';
+  return clean.charAt(0).toLocaleLowerCase('ro-RO') + clean.slice(1);
+}
+
+function isGenericSourceText(text) {
+  const clean = normalize(text || '');
+  return !clean || /subiect detectat|posibil relevant|verifica datele|fluxurile monitorizate|exemplu demo/.test(clean);
 }
 
 function chooseExternalLinks(topic) {
