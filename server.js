@@ -46,8 +46,8 @@ const MAX_AGE_MINUTES = Number(process.env.MAX_AGE_MINUTES || 120);
 const MAX_TOPICS = Number(process.env.MAX_TOPICS || 60);
 const MIN_SCAN_MINUTES = 60;
 const MAX_SCAN_MINUTES = 24 * 60;
-const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 4500);
-const USER_AGENT = process.env.USER_AGENT || 'RadarEditorialPro/4.1 (+General Post One Software)';
+const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 20000);
+const USER_AGENT = process.env.USER_AGENT || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const STRICT_SOURCE_AGE = String(process.env.STRICT_SOURCE_AGE || '1') !== '0';
 const FAST_OFICIU_SCAN = String(process.env.FAST_OFICIU_SCAN || '1') !== '0';
 const AUTO_REFRESH_MINUTES = Number(process.env.AUTO_REFRESH_MINUTES || 3);
@@ -220,7 +220,7 @@ async function buildRadar(maxAgeMinutes = MAX_AGE_MINUTES) {
 
 async function fetchAllCandidateItems(sourceErrors, maxAgeMinutes = MAX_AGE_MINUTES) {
   const urls = [...getTrendRssUrls(), ...getGoogleNewsRssUrls(maxAgeMinutes)];
-  const results = await mapLimit(urls, 4, async (feed) => {
+  const results = await mapLimit(urls, 2, async (feed) => {
     try {
       const xml = await cached(`feed:${feed.url}`, Math.min(CACHE_TTL_MS, 5 * 60 * 1000), () => fetchText(feed.url));
       return parseRssItems(xml).map((item) => ({ ...item, feedType: feed.type, feedUrl: feed.url, feedLabel: feed.label }));
@@ -235,9 +235,12 @@ async function fetchAllCandidateItems(sourceErrors, maxAgeMinutes = MAX_AGE_MINU
 
 function getTrendRssUrls() {
   const configured = process.env.GOOGLE_TRENDS_RSS_URLS || process.env.GOOGLE_TRENDS_RSS_URL;
+  // Google Trends RSS vechi întoarce 404 pentru RO în unele momente/zone.
+  // Dacă nu este setat explicit un RSS Trends valid, nu mai folosim fallback-ul vechi,
+  // ca să nu blocheze scanarea principală bazată pe Google News.
   const urls = configured
     ? configured.split(',').map((u) => u.trim()).filter(Boolean)
-    : ['https://trends.google.com/trends/trendingsearches/daily/rss?geo=RO'];
+    : [];
 
   return urls.map((url) => ({ type: 'trends', label: 'Google Trends RSS', url }));
 }
@@ -1244,11 +1247,18 @@ async function fetchText(url) {
       headers: {
         'User-Agent': USER_AGENT,
         'Accept': 'application/rss+xml, application/xml, application/json, text/html, text/plain;q=0.8',
-        'Accept-Language': 'ro-RO,ro;q=0.9,en;q=0.6'
+        'Accept-Language': 'ro-RO,ro;q=0.9,en;q=0.6',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
       }
     });
     if (!response.ok) throw new Error(`HTTP ${response.status} pentru ${url}`);
     return await response.text();
+  } catch (error) {
+    if (error && (error.name === 'AbortError' || error.message === 'This operation was aborted')) {
+      throw new Error(`Timeout după ${REQUEST_TIMEOUT_MS}ms pentru ${url}`);
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
