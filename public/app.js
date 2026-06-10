@@ -494,15 +494,10 @@ function renderTopicCard(topic) {
         <div class="data-cell"><span>Recomandare</span><strong>${escapeHtml(topic.recommendation || 'monitorizează')}</strong></div>
       </div>
 
-      <p class="reason"><strong>Pe scurt:</strong> ${escapeHtml(buildShortSummary(topic))}</p>
-      <p class="reason"><strong>De ce contează:</strong> ${escapeHtml(buildImpactReasonClient(topic))}</p>
-      <p class="reason"><strong>Entități detectate:</strong> ${escapeHtml((topic.entities || []).join(', ') || '—')}</p>
-      <p class="reason"><strong>Keywords:</strong> ${escapeHtml((topic.keywords || []).slice(0, 8).join(', ') || buildFocusKeyword(topic))}</p>
 
       <div class="sources-list">${sourcesHtml || '<span class="badge">Surse indisponibile</span>'}</div>
 
       ${renderOnlineArticleLinks(topic)}
-
     </article>
   `;
 }
@@ -1716,7 +1711,7 @@ function resetFilters() {
   el.intensityFilter.value = 'toate';
   el.ageFilter.value = '120';
   el.coverageFilter.value = 'neacoperit';
-  el.sortFilter.value = 'priority';
+  el.sortFilter.value = 'recency';
   state.currentCategory = 'toate';
   document.querySelectorAll('.nav-pill').forEach((button) => button.classList.toggle('active', button.dataset.category === 'toate'));
   render();

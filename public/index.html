@@ -15,7 +15,7 @@
       <div>
         <p class="eyebrow">General Post One Software</p>
         <h1>Radar Editorial PRO</h1>
-        <p class="header-copy">Afișează subiecte recente din surse publice, pe intervalul ales, ca să alegi rapid ce merită urmărit editorial.</p>
+        <p class="header-copy">Scanează rapid fluxurile publice și afișează subiectele noi care pot merita urmărite editorial.</p>
       </div>
       <div class="header-actions">
         <button class="btn btn-primary" id="refreshBtn" type="button">Pornește Refresh live</button>
@@ -54,10 +54,7 @@
           <button class="link-button" id="resetFiltersBtn" type="button">Reset</button>
         </div>
 
-        <label class="field" hidden>
-          <span>Caută în subiecte</span>
-          <input id="searchInput" type="search" placeholder="ex: pensii, meteo, Nicușor Dan..." autocomplete="off" />
-        </label>
+        <input id="searchInput" type="hidden" value="" />
 
         <label class="field">
           <span>Interes</span>
@@ -113,15 +110,12 @@
           </select>
         </label>
 
-        <label class="field" hidden>
-          <span>Sortare</span>
-          <select id="sortFilter">
-            <option value="priority">Scor prioritate</option>
-            <option value="recency" selected>Cele mai noi</option>
-            <option value="trend">Scor interes</option>
-            <option value="risk">Risc editorial</option>
-          </select>
-        </label>
+        <select id="sortFilter" hidden>
+          <option value="recency" selected>Cele mai noi</option>
+          <option value="priority">Scor prioritate</option>
+          <option value="trend">Scor interes</option>
+          <option value="risk">Risc editorial</option>
+        </select>
 
       </section>
 
