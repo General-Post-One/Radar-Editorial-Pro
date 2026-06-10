@@ -637,15 +637,20 @@ function showGptArticlePrompt(topic) {
 }
 
 function showCopyPasteDraft(topic) {
-  const draft = buildLocalCopyPasteDraft(topic);
   el.dialogTitle.textContent = 'Draft local';
-  el.dialogBody.innerHTML = `
-    <p class="muted">Draft local construit din sursele detectate de radar. Verifică datele oficiale înainte de publicare.</p>
-    <textarea class="draft-textarea large" readonly>${escapeHtml(draft)}</textarea>
-    <div class="dialog-actions">
-      <button class="btn btn-primary" type="button" onclick="navigator.clipboard.writeText(this.closest('.dialog-body').querySelector('textarea').value)">Copiază draftul</button>
-    </div>
-  `;
+  try {
+    const draft = buildLocalCopyPasteDraft(topic);
+    el.dialogBody.innerHTML = `
+      <p class="muted">Draft local construit din sursele detectate de radar. Verifică datele oficiale înainte de publicare.</p>
+      <textarea class="draft-textarea large" readonly>${escapeHtml(draft)}</textarea>
+      <div class="dialog-actions">
+        <button class="btn btn-primary" type="button" onclick="navigator.clipboard.writeText(this.closest('.dialog-body').querySelector('textarea').value)">Copiază draftul</button>
+      </div>
+    `;
+  } catch (error) {
+    console.error('Draft local error', error, topic);
+    el.dialogBody.innerHTML = `<p><strong>Draftul nu s-a putut genera.</strong> ${escapeHtml(error.message || String(error))}</p>`;
+  }
   openDialog();
 }
 
@@ -1055,6 +1060,24 @@ function buildOfficialHint(topic) {
   return 'Pentru forma finală, caută sursa primară și evită concluziile care nu apar în documente sau declarații verificabile.';
 }
 
+function isGenericSourceText(text) {
+  const clean = normalize(text || '');
+  if (!clean) return true;
+  const generic = [
+    'subiect detectat ca posibil relevant',
+    'verifica datele oficiale',
+    'foloseste un unghi propriu',
+    'merita urmarit deoarece are scor',
+    'unghi recomandat',
+    'informatie trebuie verificata',
+    'inainte de publicare',
+    'draft local',
+    'ce inseamna pentru cititor',
+    'aici trebuie explicat'
+  ];
+  return generic.some((item) => clean.includes(item));
+}
+
 function firstUsefulDetail(topic, sources) {
   const title = cleanupForArticle(topic.title || topic.seoTitle || '');
   const details = sources
@@ -1217,9 +1240,10 @@ async function runManualCheck() {
 
 
 function buildShortSummary(topic) {
+  const title = cleanupForArticle(topic.title || 'Subiect nou');
   const affected = inferAffectedPeople(topic);
   const next = inferNextStep(topic);
-  return `${topic.title}. Miza: ${affected}. Următorul pas: ${next}`;
+  return `${title}. Cine este vizat: ${affected}. Următorul pas: ${next}`;
 }
 
 function buildOficiulAngle(topic) {
@@ -1234,7 +1258,9 @@ function buildOficiulAngle(topic) {
 }
 
 function inferAffectedPeople(topic) {
-  const text = normalize(`${topic.title} ${topic.interest} ${(topic.keywords || []).join(' ')}`);
+  const text = normalize(`${topic.title} ${topic.interest} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')}`);
+  if (/ucraina|rusia|nato|patriot|razboi|marea neagra|bulgaria|moldova|sua|iran/.test(text)) return 'cititorii interesați de securitatea regională, deciziile UE/NATO și efectele asupra României';
+  if (/cfr cluj|fcsb|rapid|dinamo|craiova|fotbal|cantonament|meci|transfer/.test(text)) return 'suporterii, clubul și cititorii care urmăresc programul echipei';
   if (/pensii|pensie/.test(text)) return 'pensionarii și familiile lor';
   if (/tva|taxe|anaf|impozit/.test(text)) return 'contribuabilii, firmele și oamenii care plătesc taxe';
   if (/facturi|energie|gaze|curent/.test(text)) return 'consumatorii casnici și firmele cu facturi mari';

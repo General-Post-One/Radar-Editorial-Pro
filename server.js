@@ -1440,21 +1440,24 @@ async function loadLocalDeputyContacts() {
 }
 
 function inferOfficialContactTargets(topic) {
-  const text = normalize(`${topic.title || ''} ${(topic.entities || []).join(' ')} ${(topic.keywords || []).join(' ')} ${topic.interest || ''}`);
+  const text = normalize(`${topic.title || ''} ${(topic.entities || []).join(' ')} ${(topic.keywords || []).join(' ')}`);
   const contacts = [];
   const add = (name, role, url, reason, competence, email = '', phone = '') => contacts.push({ type: 'oficial', name, role, url, reason, competence, email, phone, confidence: 70 });
+  const isSport = /fotbal|cfr cluj|fcsb|rapid|dinamo|craiova|superliga|frf|lpf|cantonament|transfer|meci|lot|club/.test(text);
+  const isExternalSecurity = /ue|bruxelles|parlamentul european|comisia europeana|nato|rusia|ucraina|moldova|razboi|patriot|rachete|aparare|armata|drona|marea neagra/.test(text);
+  const isEducation = !isExternalSecurity && !isSport && /educatie|scoala|bac|evaluare|elev|profesor|admitere|examen/.test(text);
 
   if (/presedint|cotroceni|nicusor|ziua europei|csat/.test(text)) add('Administrația Prezidențială', 'Biroul de presă / comunicare publică', 'https://www.presidency.ro/ro/contact', 'Subiect cu importanță prezidențială sau instituțională.', 'poate confirma agenda, poziția oficială și contextul instituțional.');
-  if (/guvern|premier|minister|coalitie|motiune|ordonanta|hotarare/.test(text)) add('Guvernul României', 'Biroul de presă', 'https://gov.ro/ro/contact', 'Subiect cu posibilă decizie guvernamentală.', 'poate confirma calendarul, decizia oficială și instituțiile implicate.');
+  if (!isSport && /guvern|premier|minister|coalitie|motiune|ordonanta|hotarare/.test(text)) add('Guvernul României', 'Biroul de presă', 'https://gov.ro/ro/contact', 'Subiect cu posibilă decizie guvernamentală.', 'poate confirma calendarul, decizia oficială și instituțiile implicate.');
   if (/anaf|taxe|impozit|tva|fiscal|contribuabil/.test(text)) add('ANAF', 'Comunicare publică', 'https://www.anaf.ro/anaf/internet/ANAF/contact', 'Subiect fiscal / contribuabili.', 'poate clarifica aplicarea practică, termenele și categoriile vizate.');
   if (/bnr|dobanzi|curs|inflatie|banca|credit|rate/.test(text)) add('BNR', 'Comunicare publică', 'https://www.bnr.ro/Contact-16.aspx', 'Subiect monetar / dobânzi / curs.', 'poate oferi date oficiale și context economic.');
   if (/anm|meteo|vreme|cod galben|cod portocaliu|furtuna|canicula|ploi/.test(text)) add('Administrația Națională de Meteorologie', 'Relații publice / prognoză', 'https://www.meteoromania.ro/', 'Subiect meteo cu impact public.', 'poate confirma avertizările, intervalele și zonele vizate.');
-  if (/politie|accident|trafic|dosar|ancheta|mai|frontiera/.test(text)) add('Poliția Română / MAI', 'Comunicare publică', 'https://www.politiaromana.ro/ro/contact', 'Subiect de ordine publică / incident / trafic.', 'poate confirma datele operative și măsurile luate.');
+  if (!isSport && /politie|accident|trafic|dosar|ancheta|mai|frontiera/.test(text)) add('Poliția Română / MAI', 'Comunicare publică', 'https://www.politiaromana.ro/ro/contact', 'Subiect de ordine publică / incident / trafic.', 'poate confirma datele operative și măsurile luate.');
   if (/isu|dsu|incendiu|explozie|urgenta|evacuare/.test(text)) add('DSU / IGSU', 'Comunicare publică', 'https://www.igsu.ro/', 'Subiect de urgență publică.', 'poate confirma bilanțul, intervenția și recomandările pentru populație.');
-  if (/educatie|scoala|bac|evaluare|elev|profesor|admitere/.test(text)) add('Ministerul Educației', 'Biroul de presă', 'https://www.edu.ro/contact', 'Subiect de educație.', 'poate confirma calendarul, metodologia și categoriile de elevi vizate.');
+  if (isEducation) add('Ministerul Educației', 'Biroul de presă', 'https://www.edu.ro/contact', 'Subiect de educație.', 'poate confirma calendarul, metodologia și categoriile de elevi vizate.');
   if (/sanatate|spital|medicament|pacient|boala|vaccin/.test(text)) add('Ministerul Sănătății', 'Biroul de presă', 'https://www.ms.ro/ro/contact/', 'Subiect medical / sănătate publică.', 'poate confirma datele oficiale și recomandările publice.');
-  if (/ue|bruxelles|parlamentul european|comisia europeana|nato|rusia|ucraina|moldova|razboi/.test(text)) add('Ministerul Afacerilor Externe', 'Comunicare publică', 'https://www.mae.ro/contact', 'Subiect extern relevant pentru România.', 'poate confirma poziția României și contextul diplomatic.');
-  if (/fotbal|cfr cluj|fcsb|rapid|dinamo|craiova|superliga|frf|lpf|cantonament|transfer|meci/.test(text)) add('Clubul / organizatorul competiției', 'Departament comunicare sportivă', '', 'Subiect sportiv care trebuie confirmat la club sau organizator.', 'poate confirma programul, lotul, cantonamentul, adversarii și modificările oficiale.');
+  if (isExternalSecurity) add('Ministerul Afacerilor Externe', 'Comunicare publică', 'https://www.mae.ro/contact', 'Subiect extern relevant pentru România.', 'poate confirma poziția României și contextul diplomatic.');
+  if (isSport) add('Clubul / organizatorul competiției', 'Departament comunicare sportivă', '', 'Subiect sportiv care trebuie confirmat la club sau organizator.', 'poate confirma programul, lotul, cantonamentul, adversarii și modificările oficiale.');
 
   return contacts;
 }
@@ -1525,7 +1528,7 @@ function buildContactEmailBody(topic, contact) {
     ? `Vă contactez în legătură cu informațiile publicate pe ${sourceDomain}. Adresa apare public pe pagina sursei, dar vă rog să îmi indicați persoana potrivită dacă solicitarea trebuie redirecționată.`
     : (contact.type === 'contact local'
       ? `Vă contactez pentru un punct de vedere sau o direcționare către persoana competentă, doar dacă subiectul intră în zona dumneavoastră publică de activitate.`
-      : (contact.role ? `Vă contactez pentru clarificări care țin de: ${contact.role}.` : 'Vă contactez pentru o clarificare legată de un subiect de actualitate.'));
+      : (contact.name ? `Vă contactez pentru clarificări pe care ${contact.name} le poate confirma oficial sau redirecționa către instituția competentă.` : 'Vă contactez pentru o clarificare legată de un subiect de actualitate.'));
   const competenceLine = isExtractedSource
     ? `Solicitarea este relevantă deoarece articolul detectat de radar conține informații care trebuie atribuite corect și, unde este posibil, verificate din sursa primară.`
     : (contact.competence ? `Am considerat relevantă solicitarea deoarece ${contact.competence}` : '');
@@ -1533,22 +1536,22 @@ function buildContactEmailBody(topic, contact) {
 }
 
 function buildContactQuestions(topic, contact) {
-  const text = normalize(`${topic.title || ''} ${topic.interest || ''} ${(topic.entities || []).join(' ')} ${(topic.keywords || []).join(' ')}`);
+  const text = normalize(`${topic.title || ''} ${(topic.entities || []).join(' ')} ${(topic.keywords || []).join(' ')} ${(topic.sources || []).map((s) => `${s.title || ''} ${s.description || ''}`).join(' ')}`);
   const title = topic.title || 'subiectul menționat';
   const domain = domainFromUrl(contact.url || '');
   const sourceItem = (topic.sources || []).find((s) => normalize(domainFromUrl(s.url || '')) === normalize(domain)) || (topic.sources || [])[0] || {};
   const sourceLine = cleanText(`${sourceItem.title || ''} ${sourceItem.description || ''}`).slice(0, 260);
   const isExtractedSource = contact.type === 'extras public';
   const official = contact.type === 'oficial';
-  const political = /politic|guvern|parlament|deputat|senat|camera deputatilor|psd|pnl|usr|aur|udmr|motiune|lege|premier|presedint|ministru|coalitie/.test(text) || contact.type === 'contact local';
+  const sport = /fotbal|cfr cluj|fcsb|rapid|dinamo|craiova|superliga|frf|lpf|cantonament|transfer|meci|lot|club/.test(text);
+  const externalSecurity = /rusia|ucraina|nato|ue|moldova|razboi|sancțiuni|sancțiune|aparare|armata|drona|marea neagra|patriot|rachete|kiev/.test(text);
   const foodPrices = /aliment|adaos|plafon|pret|preturi|comercial|magazin|retailer|cosul|produs/.test(text);
   const fiscalLegal = /notar|impozit|taxe|tva|anaf|parchet|procuror|judecat|evaziune|dosar|prejudiciu|contributii/.test(text);
   const crimeIncident = /injunghiat|crima|omor|amenintat|violenta|agres|atac|victima|suspect|retinut|arest|politie|parchet/.test(text);
   const weatherEmergency = /anm|meteo|vreme|cod galben|cod portocaliu|furtuna|ploi|canicula|isu|inundatii|vijelie/.test(text);
-  const education = /bac|evaluare|educatie|scoala|elev|profesor|examen|admitere/.test(text);
+  const education = !externalSecurity && !sport && /bac|evaluare|educatie|scoala|elev|profesor|examen|admitere/.test(text);
   const health = /sanatate|spital|medic|pacient|boala|tratament|medicament/.test(text);
-  const externalSecurity = /rusia|ucraina|nato|ue|moldova|razboi|sancțiuni|sancțiune|aparare|armata|drona|marea neagra/.test(text);
-  const sport = /fotbal|cfr cluj|fcsb|rapid|dinamo|craiova|superliga|frf|lpf|cantonament|transfer|meci|lot|club/.test(text);
+  const political = !sport && /politic|guvern|parlament|deputat|senat|camera deputatilor|psd|pnl|usr|aur|udmr|motiune|lege|premier|presedint|ministru|coalitie/.test(text) || contact.type === 'contact local';
 
   if (isExtractedSource) {
     if (foodPrices) return [
@@ -1561,7 +1564,7 @@ function buildContactQuestions(topic, contact) {
     if (fiscalLegal) return [
       `În relatarea ${domain}, datele despre dosar provin dintr-un comunicat al Parchetului, din rechizitoriu sau din informații Agerpres?`,
       'Care este prejudiciul exact indicat oficial și ce tipuri de impozite/contribuții sunt menționate separat?',
-      'Persoana trimisă în judecată are o calitate oficială completă ce poate fi publicată sau trebuie păstrată anonipartea importantărea?',
+      'Persoana trimisă în judecată are o calitate oficială completă ce poate fi publicată sau trebuie păstrată anonimă?',
       'Au fost dispuse măsuri asigurătorii, recuperări de prejudiciu sau alte măsuri judiciare menționate în documentele oficiale?',
       'Există o precizare privind prezumția de nevinovăție sau stadiul exact al dosarului în instanță?'
     ];
