@@ -648,7 +648,7 @@ function showCopyPasteDraft(topic) {
   const draft = buildLocalCopyPasteDraft(topic);
   el.dialogTitle.textContent = 'Draft local';
   el.dialogBody.innerHTML = `
-    <p class="muted">Draft local rapid, fără AI. Verifică informațiile din sursele oficiale înainte de publicare.</p>
+    <p class="muted">Draft local construit din sursele detectate de radar. Verifică datele oficiale înainte de publicare.</p>
     <textarea class="draft-textarea large" readonly>${escapeHtml(draft)}</textarea>
     <div class="dialog-actions">
       <button class="btn btn-primary" type="button" onclick="navigator.clipboard.writeText(this.closest('.dialog-body').querySelector('textarea').value)">Copiază draftul</button>
@@ -788,123 +788,274 @@ Checklist final:
 
 function buildLocalCopyPasteDraft(topic) {
   const focusKeyword = buildFocusKeyword(topic);
-  const title = topic.seoTitle || buildSeoHeadline(topic);
-  const sources = Array.isArray(topic.sources) ? topic.sources.filter((s) => s && (s.title || s.description || s.name || s.url)).slice(0, 4) : [];
-  const mainSource = sources[0] || {};
-  const sourceName = mainSource.name || 'sursa citată de radar';
-  const lead = buildSourceBasedLead(topic, sources);
-  const sourceBullets = buildSourceFactBullets(topic, sources);
-  const context = buildSourceContextParagraph(topic, sources);
-  const next = buildNextStepsFromSources(topic, sources);
+  const title = cleanupForArticle(topic.seoTitle || buildSeoHeadline(topic) || topic.title || 'Subiect nou');
+  const sources = getCleanSources(topic).slice(0, 4);
   const externalLinks = chooseExternalLinks(topic);
-  const linksText = externalLinks.length
+  const h2Main = buildArticleMainH2(topic);
+  const impactH2 = buildArticleImpactH2(topic);
+  const verifyH2 = buildArticleVerifyH2(topic);
+  const lead = buildArticleLead(topic, sources);
+  const mainSection = buildArticleMainSection(topic, sources);
+  const impactSection = buildArticleImpactSection(topic, sources);
+  const verifySection = buildArticleVerifySection(topic, sources);
+  const shortBox = buildArticleShortBox(topic, sources);
+  const nextSection = buildArticleNextSection(topic, sources);
+  const linkLines = externalLinks.length
     ? externalLinks.map((link, index) => `${index + 1}. ${link.anchor}: ${link.url}`).join('\n')
-    : '1. Adaugă linkul sursei principale după verificare.\n2. Adaugă link oficial dacă există comunicat/instituție.';
+    : '1. Adaugă linkul sursei principale după verificare.\n2. Adaugă link oficial dacă există comunicat sau document public.';
 
-  return `${title}
+  return `# ${title}
 
 ${lead}
 
-## Ce s-a întâmplat, potrivit surselor găsite
+## ${h2Main}
 
-${context}
+${mainSection}
+
+## ${impactH2}
+
+${impactSection}
 
 ## Pe scurt
 
-${sourceBullets}
+${shortBox}
 
-## Ce trebuie verificat înainte de publicare
+## ${verifyH2}
 
-- dacă informația este confirmată de o instituție oficială sau doar relatată de publicația citată;
-- ora exactă, locul și persoanele/instituțiile implicate;
-- eventuale reacții oficiale, documente, comunicate sau precizări noi;
-- dacă Oficiul de Știri a mai publicat deja un material pe același unghi.
+${verifySection}
 
-## Ce urmează în cazul acestui subiect
+## Documente și reacții care trebuie urmărite
 
-${next}
+${nextSection}
 
-Linkuri externe de pus în articol:
-${linksText}
-
-SEO:
+SEO rapid:
 Focus keyword: ${focusKeyword}
 Meta: ${buildMetaClient(topic, focusKeyword)}
 Categorie: ${topic.wpCategory || topic.category || 'Actualitate'}
 Taguri: ${buildTags(topic).join(', ')}
 
-Notă: draft generat local pe baza titlurilor, descrierilor și linkurilor detectate de radar. Verifică sursa înainte de publicare, mai ales dacă există o singură sursă.`;
+Linkuri externe detectate:
+${linkLines}
+
+Notă redacțională: draftul este construit automat din titlurile, descrierile și linkurile găsite de radar. Verifică sursa inițială și caută confirmarea oficială înainte de publicare, mai ales când subiectul apare într-o singură sursă.`;
 }
 
-function buildSourceBasedLead(topic, sources) {
-  const title = cleanupSentence(topic.title || topic.seoTitle || '');
-  const sourceName = sources[0]?.name || 'sursele monitorizate';
-  const description = cleanupSentence(sources[0]?.description || '');
-  if (description && description.length > 40 && !isGenericSourceText(description)) {
-    return `Potrivit informațiilor publicate de ${sourceName}, ${lowercaseFirst(description)}. Subiectul a fost detectat în ultimele ${formatMinutes(topic.startedMinutesAgo)} și trebuie verificat înainte de publicare, mai ales dacă nu există încă o confirmare oficială.`;
+function getCleanSources(topic) {
+  const seen = new Set();
+  return (Array.isArray(topic.sources) ? topic.sources : [])
+    .filter((s) => s && (s.title || s.description || s.name || s.url))
+    .map((s) => {
+      const url = s.url || '';
+      const key = url || `${s.name || ''}-${s.title || ''}`;
+      if (seen.has(key)) return null;
+      seen.add(key);
+      return {
+        ...s,
+        name: cleanupForArticle(s.name || domainFromUrlClient(url) || 'sursa citată'),
+        title: cleanupForArticle(s.title || ''),
+        description: cleanupForArticle(s.description || ''),
+        url
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildArticleLead(topic, sources) {
+  const title = cleanupForArticle(topic.title || topic.seoTitle || '');
+  const main = sources[0] || {};
+  const detail = firstUsefulDetail(topic, sources);
+  const sourceText = sources.length > 1
+    ? `${main.name} și alte surse monitorizate de radar`
+    : (main.name || 'sursa monitorizată de radar');
+  const age = formatMinutes(topic.startedMinutesAgo);
+  const caution = sources.length === 1
+    ? 'Informația trebuie confirmată din sursă oficială înainte de publicare.'
+    : 'Subiectul trebuie verificat din documente sau comunicări oficiale înainte de publicare.';
+
+  if (detail && !sameNormalized(detail, title)) {
+    return `${detail}. Subiectul a fost detectat de radar în ultimele ${age}, prin ${sourceText}. ${caution}`;
   }
-  return `Potrivit informațiilor publicate de ${sourceName}, ${lowercaseFirst(title)}. Subiectul a fost detectat în ultimele ${formatMinutes(topic.startedMinutesAgo)} și trebuie verificat înainte de publicare, mai ales dacă nu există încă o confirmare oficială.`;
+  return `${title}. Subiectul a fost detectat de radar în ultimele ${age}, prin ${sourceText}. ${caution}`;
 }
 
-function buildSourceFactBullets(topic, sources) {
-  const bullets = [];
-  if (sources.length) {
-    sources.slice(0, 4).forEach((source) => {
-      const name = source.name || 'Sursă';
-      const fact = cleanupSentence(source.description || source.title || topic.title || '');
-      const age = typeof source.sourceAgeMinutes === 'number' ? `, acum ${formatMinutes(source.sourceAgeMinutes)}` : '';
-      if (fact) bullets.push(`- ${name}${age}: ${fact}.`);
-    });
+function buildArticleMainH2(topic) {
+  const text = normalize(`${topic.title || ''} ${(topic.keywords || []).join(' ')} ${(topic.entities || []).join(' ')}`);
+  if (/plafon|alimente|pret|preturi|adaos|facturi|taxe|impozit|anaf|buget|salarii|pensii/.test(text)) return 'Ce se schimbă pentru bani, taxe sau prețuri';
+  if (/notar|judecat|parchet|procuror|dosar|ancheta|instanta|condamn/.test(text)) return 'Ce se știe despre dosar și prejudiciu';
+  if (/injunghiat|crima|omor|amenintat|violenta|politia/.test(text)) return 'Cum s-a produs incidentul, potrivit primelor informații';
+  if (/meteo|anm|cod galben|cod portocaliu|furtuni|vreme/.test(text)) return 'Zonele și intervalul vizate de avertizare';
+  if (/guvern|parlament|lege|minister|ordonanta|vot/.test(text)) return 'Decizia anunțată și ce schimbă ea';
+  if (/ucraina|rusia|nato|ue|moldova|iran|sua|bulgaria/.test(text)) return 'Ce s-a schimbat și de ce contează în regiune';
+  return 'Ce se știe până acum din sursele monitorizate';
+}
+
+function buildArticleMainSection(topic, sources) {
+  const main = sources[0] || {};
+  const second = sources[1] || null;
+  const detail = firstUsefulDetail(topic, sources) || cleanupForArticle(topic.title || '');
+  const link = main.url ? `[${main.name}](${main.url})` : main.name || 'sursa citată';
+  let text = `Conform ${link}, ${lowercaseFirstForArticle(detail)}.`;
+
+  if (second) {
+    const secondDetail = cleanupForArticle(second.description || second.title || '');
+    const secondLink = second.url ? `[${second.name}](${second.url})` : second.name;
+    if (secondDetail && !sameNormalized(secondDetail, detail)) {
+      text += ` ${secondLink} relatează, la rândul său, că ${lowercaseFirstForArticle(shortenForArticle(secondDetail, 260))}.`;
+    } else {
+      text += ` Informația apare și în ${secondLink}, ceea ce arată că subiectul circulă deja în mai multe fluxuri de știri.`;
+    }
   }
-  if (!bullets.length) bullets.push(`- Radarul a detectat subiectul: ${cleanupSentence(topic.title || '')}.`);
-  bullets.push(`- Subiectul apare în ${formatSourceCount(topic.sourceCount || sources.length)} monitorizate de radar.`);
-  bullets.push(`- Acoperire Oficiul de Știri: ${(topic.coverage || {}).label || 'Neacoperit'}.`);
-  return bullets.map((line) => line.replace(/\.\./g, '.')).join('\n');
+
+  const officialHint = buildOfficialHint(topic);
+  return `${text}\n\n${officialHint}`;
 }
 
-function buildSourceContextParagraph(topic, sources) {
-  const title = cleanupSentence(topic.title || '');
-  const names = sources.map((s) => s.name).filter(Boolean).slice(0, 3);
-  const sourceText = names.length ? `Sursa detectată de radar este ${names.join(', ')}.` : 'Radarul nu are o sursă nominalizată clar în card.';
-  const details = sources.map((s) => cleanupSentence(s.description || s.title || '')).filter(Boolean);
-  const uniqueDetails = [...new Set(details)].slice(0, 2);
-  const detailText = uniqueDetails.length ? uniqueDetails.join(' ') : title;
-  return `${sourceText} Informația de bază este: ${detailText}. Materialul trebuie scris ca știre de actualitate, cu atribuire clară către sursa citată și fără concluzii care nu apar în datele disponibile.`;
+function buildArticleImpactH2(topic) {
+  const text = normalize(`${topic.title || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')}`);
+  if (/alimente|pret|preturi|adaos|facturi|tva|taxe|impozit|pensii|salarii/.test(text)) return 'De ce îi afectează pe cititori';
+  if (/injunghiat|crima|omor|amenintat|violenta/.test(text)) return 'De ce cazul ridică întrebări despre siguranță';
+  if (/notar|impozit|prejudiciu|parchet|dosar/.test(text)) return 'De ce contează pentru contribuabili și justiție';
+  if (/meteo|vreme|cod|furtuni/.test(text)) return 'Ce trebuie să știe oamenii din zonele vizate';
+  if (/ucraina|rusia|nato|ue|moldova/.test(text)) return 'Legătura cu România și cu regiunea';
+  return 'Ce înseamnă pentru cititor';
 }
 
-function buildNextStepsFromSources(topic, sources) {
+function buildArticleImpactSection(topic, sources) {
+  const text = normalize(`${topic.title || ''} ${topic.interest || ''} ${(topic.keywords || []).join(' ')}`);
+  if (/alimente|pret|preturi|adaos|facturi|tva|taxe|impozit|pensii|salarii/.test(text)) {
+    return 'Partea importantă pentru cititori este efectul concret: prețuri, taxe, bugetul familiei sau costuri pentru firme. Articolul trebuie să explice cine câștigă timp sau bani, cine suportă costul și de când se aplică măsura.';
+  }
+  if (/injunghiat|crima|omor|amenintat|violenta/.test(text)) {
+    return 'Pentru cititori, cazul nu este doar o știre de fapt divers. Contează dacă existau amenințări anterioare, dacă autoritățile fuseseră sesizate și ce măsuri au fost luate după incident. Formulările trebuie să rămână prudente până la confirmarea anchetatorilor.';
+  }
+  if (/notar|impozit|prejudiciu|parchet|dosar/.test(text)) {
+    return 'Subiectul contează pentru că vorbește despre bani care ar fi trebuit să ajungă la bugetul public și despre răspunderea unei profesii cu acces direct la tranzacții importante. În articol trebuie clarificat prejudiciul, instituția care a anunțat dosarul și stadiul exact al procedurii.';
+  }
+  if (/meteo|vreme|cod|furtuni/.test(text)) {
+    return 'Pentru public, informația utilă este intervalul, județele vizate și riscul practic: trafic, gospodării, culturi agricole, școli sau evenimente în aer liber. Textul trebuie actualizat dacă ANM schimbă harta avertizărilor.';
+  }
+  if (/guvern|parlament|lege|minister|ordonanta|vot/.test(text)) {
+    return 'Pentru cititor, decizia trebuie explicată în termeni concreți: cine este vizat, când se aplică și ce document oficial confirmă schimbarea. O știre bună nu se oprește la vot sau declarație, ci arată efectul practic.';
+  }
+  if (/ucraina|rusia|nato|ue|moldova|sua|iran/.test(text)) {
+    return 'Legătura cu România trebuie explicată clar: securitate regională, decizii ale UE sau NATO, energie, transporturi, diaspora ori presiune politică la granița estică. Fără această legătură, subiectul rămâne doar o preluare externă.';
+  }
+  return 'Subiectul merită urmărit dacă poate schimba ceva concret pentru cititori: bani, siguranță, drepturi, servicii publice sau decizii politice. Textul final trebuie să adauge context, nu doar să repete titlul din flux.';
+}
+
+function buildArticleShortBox(topic, sources) {
+  const sourceCount = topic.sourceCount || sources.length || 0;
+  const sourceNames = sources.map((s) => s.name).filter(Boolean).slice(0, 3).join(', ') || 'sursa monitorizată';
+  const first = shortenForArticle(firstUsefulDetail(topic, sources) || topic.title || '', 210);
+  const coverage = (topic.coverage || {}).label || 'Neacoperit';
+  return `${first}. Subiectul apare în ${formatSourceCount(sourceCount)} monitorizate de radar (${sourceNames}), iar acoperirea Oficiul de Știri este: ${coverage}.`;
+}
+
+function buildArticleVerifyH2(topic) {
   const text = normalize(`${topic.title || ''} ${(topic.keywords || []).join(' ')}`);
-  if (/injunghiat|crima|omor|accident|politia|isu|incendiu|violenta|amenintat/.test(text)) {
-    return 'Următorul pas este verificarea informației la Poliție, Parchet, ISU sau spital, în funcție de caz. Dacă există victimă, suspect sau anchetă, formulările trebuie să rămână prudente până la confirmarea oficială.';
-  }
-  if (/guvern|minister|lege|parlament|contract|airbus|licitatie|ordonanta/.test(text)) {
-    return 'Următorul pas este căutarea documentului oficial, a comunicatului instituției sau a contractului anunțat. Materialul trebuie completat cu valoare, calendar, beneficiari și eventuale reacții.';
-  }
-  if (/meteo|anm|cod galben|cod portocaliu|vreme|furtuni/.test(text)) {
-    return 'Următorul pas este verificarea hărții ANM, a intervalului exact și a județelor vizate, apoi actualizarea articolului dacă avertizarea se prelungește sau se modifică.';
-  }
-  return 'Următorul pas este verificarea sursei inițiale, căutarea unei confirmări oficiale și actualizarea articolului cu date noi dacă apar în următoarele minute.';
+  if (/notar|parchet|dosar|instanta|trimis in judecata|procuror/.test(text)) return 'Ce trebuie verificat în comunicatul oficial';
+  if (/injunghiat|crima|accident|incendiu|politia|isu/.test(text)) return 'Ce trebuie confirmat la autorități';
+  if (/lege|parlament|guvern|minister|ordonanta|vot/.test(text)) return 'Documentul oficial care trebuie citat';
+  return 'Ce informații trebuie confirmate înainte de publicare';
 }
 
-function cleanupSentence(text) {
-  return String(text || '')
+function buildArticleVerifySection(topic, sources) {
+  const text = normalize(`${topic.title || ''} ${(topic.keywords || []).join(' ')}`);
+  if (/notar|parchet|dosar|instanta|trimis in judecata|procuror/.test(text)) {
+    return 'Trebuie verificat comunicatul Parchetului sau al instanței, calitatea persoanei trimise în judecată, suma exactă, perioada vizată și faptul că trimiterea în judecată nu înseamnă condamnare. Dacă există nume, acesta trebuie folosit numai dacă apare într-o sursă oficială sau într-o relatare verificabilă.';
+  }
+  if (/injunghiat|crima|accident|incendiu|politia|isu/.test(text)) {
+    return 'Trebuie confirmate datele la Poliție, Parchet, ISU sau spital, după caz: starea victimei, încadrarea juridică, dacă suspectul a fost reținut și dacă existau sesizări anterioare. Nu se atribuie vinovății înainte de date oficiale.';
+  }
+  if (/alimente|pret|preturi|adaos|plafon|parlament|lege|vot/.test(text)) {
+    return 'Trebuie verificat actul adoptat, instituția decizională, data până la care se aplică măsura și lista produselor vizate. Dacă există vot în Parlament, trebuie confirmat dacă legea merge la promulgare sau intră direct în vigoare.';
+  }
+  if (/meteo|anm|cod|furtuni/.test(text)) {
+    return 'Trebuie verificată harta ANM, intervalul avertizării, județele vizate și eventualele mesaje ISU. Dacă avertizarea se schimbă, titlul și leadul trebuie actualizate imediat.';
+  }
+  return 'Trebuie verificate sursa inițială, documentul oficial, ora publicării, instituțiile implicate și eventualele reacții. Dacă subiectul are o singură sursă, articolul trebuie formulat prudent.';
+}
+
+function buildArticleNextSection(topic, sources) {
+  const text = normalize(`${topic.title || ''} ${(topic.keywords || []).join(' ')}`);
+  if (/notar|parchet|dosar|instanta|trimis in judecata|procuror/.test(text)) {
+    return 'Următoarele date importante sunt termenul stabilit de instanță, poziția apărării și eventualele măsuri pentru recuperarea prejudiciului. Dacă apare comunicatul integral al Parchetului, articolul trebuie completat cu citarea exactă a acuzațiilor.';
+  }
+  if (/injunghiat|crima|accident|incendiu|politia|isu/.test(text)) {
+    return 'Următorul update trebuie să urmărească starea victimei, măsurile luate față de suspect și comunicatul oficial al anchetatorilor. Dacă apar date despre ordine de protecție sau sesizări anterioare, acestea pot schimba unghiul articolului.';
+  }
+  if (/alimente|pret|preturi|adaos|plafon|parlament|lege|vot/.test(text)) {
+    return 'Următorul pas este publicarea formei finale și clarificarea momentului de aplicare. Pentru cititori contează dacă măsura se vede la raft, cât durează și ce produse intră efectiv pe listă.';
+  }
+  if (/guvern|minister|contract|airbus|licitatie|ordonanta/.test(text)) {
+    return 'Trebuie urmărite documentele oficiale, valoarea contractului, calendarul de livrare și instituțiile care vor folosi echipamentele sau fondurile anunțate. Dacă apar reacții, articolul se actualizează cu pozițiile relevante.';
+  }
+  return 'Următorul pas este confirmarea informației în surse primare și actualizarea articolului dacă apar documente, reacții sau date noi. Dacă Oficiul a publicat deja pe același unghi, subiectul trebuie rescris din altă perspectivă.';
+}
+
+function buildOfficialHint(topic) {
+  const text = normalize(`${topic.title || ''} ${(topic.keywords || []).join(' ')}`);
+  if (/parlament|camera deputatilor|senat|guvern|minister|lege|ordonanta/.test(text)) return 'Pentru forma finală, caută actul oficial, stenograma, comunicatul Guvernului sau pagina instituției care a anunțat decizia.';
+  if (/parchet|procuror|instanta|politia|isu/.test(text)) return 'Pentru forma finală, caută anunțul instituției competente: Parchet, Poliție, instanță, ISU sau spital, după caz.';
+  if (/anm|meteo|cod galben|cod portocaliu/.test(text)) return 'Pentru forma finală, citează avertizarea ANM și verifică ora de actualizare a hărții oficiale.';
+  return 'Pentru forma finală, caută sursa primară și evită concluziile care nu apar în documente sau declarații verificabile.';
+}
+
+function firstUsefulDetail(topic, sources) {
+  const title = cleanupForArticle(topic.title || topic.seoTitle || '');
+  const details = sources
+    .map((s) => cleanupForArticle(s.description || s.title || ''))
+    .filter((value) => value && value.length > 25 && !isGenericSourceText(value));
+  const picked = details.find((value) => !sameNormalized(value, title)) || details[0] || title;
+  return shortenForArticle(picked, 360);
+}
+
+function cleanupForArticle(text) {
+  const decoded = decodeHtmlEntities(String(text || ''));
+  return decoded
     .replace(/\s+/g, ' ')
     .replace(/\s+([,.;:!?])/g, '$1')
-    .replace(/[|•]+/g, ' ')
+    .replace(/\[\.\.\.\]|\(\.\.\.\)|\.\.\./g, '')
+    .replace(/©\s*[^.]+$/i, '')
+    .replace(/&copy;\s*[^.]+$/i, '')
+    .replace(/\s*\|\s*[^|]{2,40}$/g, '')
     .trim()
     .replace(/[.!?]+$/g, '');
 }
 
-function lowercaseFirst(text) {
-  const clean = cleanupSentence(text);
+function decodeHtmlEntities(text) {
+  if (typeof document !== 'undefined') {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+  }
+  return String(text || '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&copy;/g, '©');
+}
+
+function shortenForArticle(text, max = 260) {
+  const clean = cleanupForArticle(text);
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max + 1);
+  const lastStop = Math.max(cut.lastIndexOf('.'), cut.lastIndexOf(';'), cut.lastIndexOf(','));
+  if (lastStop > 120) return cut.slice(0, lastStop).trim();
+  return clean.slice(0, max).trim().replace(/\s+\S*$/, '');
+}
+
+function lowercaseFirstForArticle(text) {
+  const clean = cleanupForArticle(text);
   if (!clean) return '';
   return clean.charAt(0).toLocaleLowerCase('ro-RO') + clean.slice(1);
 }
 
-function isGenericSourceText(text) {
-  const clean = normalize(text || '');
-  return !clean || /subiect detectat|posibil relevant|verifica datele|fluxurile monitorizate|exemplu demo/.test(clean);
+function sameNormalized(a, b) {
+  return normalize(a || '') === normalize(b || '');
 }
+
 
 function chooseExternalLinks(topic) {
   return (topic.sources || [])
