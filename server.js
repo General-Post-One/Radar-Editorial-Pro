@@ -511,7 +511,7 @@ async function enrichTopicWithCoverage(topic, maxAgeMinutes = MAX_AGE_MINUTES) {
     impact: topic.impact
   });
 
-  const hasEnoughSources = topic.sourceCount >= 2 || topic.officialConfirmed;
+  // Nu mai blocăm subiectele doar pentru că au o singură sursă.
   const tooOld = topic.startedMinutesAgo > maxAgeMinutes;
   const duplicate = coverage.status === 'deja-acoperit';
   const lowInterest = topic.trendScore < 45 && !topic.fromTrends;
@@ -521,14 +521,15 @@ async function enrichTopicWithCoverage(topic, maxAgeMinutes = MAX_AGE_MINUTES) {
 
   if (tooOld) blockedReasons.push(`Subiect mai vechi de ${maxAgeMinutes} minute.`);
   if (duplicate) blockedReasons.push('Subiect deja abordat pe oficiuldestiri.ro.');
-  if (!hasEnoughSources) blockedReasons.push('Nu are minimum două surse.');
+  // Subiectele cu o singură sursă rămân vizibile; verificarea editorială se face manual înainte de publicare.
   if (lowInterest) blockedReasons.push('Interesul estimat este prea scăzut.');
   if (lowRomaniaRelevance) blockedReasons.push('Relevanță prea mică pentru publicul din România.');
   if (sourceTooOld) blockedReasons.push(`Are surse mai vechi de ${maxAgeMinutes} minute.`);
 
   let recommendation = 'monitorizează';
   if (!blockedReasons.length && priorityScore >= 80) recommendation = 'scrie acum';
-  if (blockedReasons.length || priorityScore < 55) recommendation = 'ignoră';
+  if (duplicate) recommendation = 'ignoră';
+  else if (blockedReasons.length || priorityScore < 55) recommendation = 'monitorizează';
 
   return {
     ...topic,

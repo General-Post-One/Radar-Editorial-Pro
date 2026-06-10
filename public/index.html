@@ -124,17 +124,13 @@
           </select>
         </label>
 
-        <label class="checkbox-row">
-          <input id="includeBlocked" type="checkbox" />
-          <span>Arată și subiectele blocate pentru audit</span>
-        </label>
       </section>
 
       <section class="panel-card connector-card">
         <h2>Ce scanează</h2>
         <ul>
-          <li>Google Trends RSS / Trending Now, dacă setezi URL-ul RSS</li>
           <li>RSS-uri directe de publicații românești + interval ales: 0–60 min până la 0–24 h</li>
+          <li>subiectele apar automat chiar și când există o singură sursă</li>
           <li>oficiuldestiri.ro prin WP REST public rapid; search intern/sitemap doar opțional</li>
           <li>auto-refresh la 3 minute după ce apeși Refresh live, inclusiv când ești în alt tab</li>
         </ul>
@@ -154,9 +150,9 @@
           <small>cu scanare Oficiul de Știri</small>
         </article>
         <article class="metric-card">
-          <span>Blocate</span>
+          <span>Monitorizate</span>
           <strong id="blockedMetric">—</strong>
-          <small>duplicate / vechi / insuficient verificate</small>
+          <small>subiecte de verificat editorial</small>
         </article>
         <article class="metric-card">
           <span>Top scor</span>
@@ -180,7 +176,7 @@
       <section class="topics-grid" id="topicsGrid" aria-live="polite"></section>
       <section class="empty-state" id="emptyState" hidden>
         <h3>Nu există subiecte eligibile pentru filtrele curente</h3>
-        <p>Activează „Arată și subiectele blocate” ca să vezi de ce au fost eliminate sau apasă Refresh live.</p>
+        <p>Apasă Refresh live sau mărește intervalul de scanare.</p>
       </section>
     </section>
   </main>

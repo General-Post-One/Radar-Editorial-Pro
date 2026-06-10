@@ -37,7 +37,6 @@ const el = {
   ageFilter: document.getElementById('ageFilter'),
   coverageFilter: document.getElementById('coverageFilter'),
   sortFilter: document.getElementById('sortFilter'),
-  includeBlocked: document.getElementById('includeBlocked'),
   resetFiltersBtn: document.getElementById('resetFiltersBtn'),
   topicsGrid: document.getElementById('topicsGrid'),
   emptyState: document.getElementById('emptyState'),
@@ -90,7 +89,7 @@ function bindEvents() {
     });
   }
 
-  [el.searchInput, el.interestFilter, el.intensityFilter, el.coverageFilter, el.sortFilter, el.includeBlocked]
+  [el.searchInput, el.interestFilter, el.intensityFilter, el.coverageFilter, el.sortFilter]
     .forEach((input) => input.addEventListener('input', render));
   el.ageFilter.addEventListener('input', () => {
     pruneStoredTopics();
@@ -397,17 +396,16 @@ function render() {
   const topics = getFilteredTopics();
   updateMetrics(topics);
 
-  el.resultsSummary.textContent = `${topics.length} subiect(e) afișate din ${state.topics.length} păstrate în intervalul ${formatScanInterval(getSelectedMaxAgeMinutes())}. Default: doar subiecte neacoperite.`;
+  el.resultsSummary.textContent = `${topics.length} subiect(e) afișate din ${state.topics.length} păstrate în intervalul ${formatScanInterval(getSelectedMaxAgeMinutes())}. Sunt afișate automat și subiectele cu o singură sursă.`;
   el.emptyState.hidden = topics.length > 0;
   el.topicsGrid.innerHTML = topics.map(renderTopicCard).join('');
 }
 
 function getFilteredTopics(sourceList = state.topics) {
   const search = normalize(el.searchInput.value);
-  const includeBlocked = el.includeBlocked.checked;
   let list = sourceList.map(withCurrentAge).filter((topic) => isTopicWithinSelectedInterval(topic, getSelectedMaxAgeMinutes()));
 
-  if (!includeBlocked) list = list.filter((topic) => topic.eligibility?.isEligible);
+  // Nu mai ascundem subiectele marcate anterior ca blocate; apar automat în listă.
   if (state.currentCategory !== 'toate') list = list.filter((topic) => topic.category === state.currentCategory);
   if (el.interestFilter.value !== 'toate') list = list.filter((topic) => topic.interest === el.interestFilter.value);
   if (el.intensityFilter.value !== 'toate') list = list.filter((topic) => topic.intensity === el.intensityFilter.value);
@@ -447,7 +445,7 @@ function renderTopicCard(topic) {
   const isBlocked = !topic.eligibility?.isEligible;
   const scoreStyle = `--score:${Math.max(0, Math.min(100, topic.priorityScore || 0))}%`;
   const coverageBadgeClass = coverage.status === 'neacoperit' ? 'green' : coverage.status === 'posibil-similar' ? 'yellow' : 'red';
-  const blockedHtml = isBlocked ? `<div class="blocked-reasons"><strong>Blocat:</strong> ${escapeHtml((topic.eligibility?.blockedReasons || []).join(' '))}</div>` : '';
+  const blockedHtml = '';
   const sourcesHtml = (topic.sources || []).slice(0, 5).map((source) => {
     const href = source.url && source.url !== '#' ? source.url : '#';
     const age = typeof source.sourceAgeMinutes === 'number' ? ` · ${formatMinutes(source.sourceAgeMinutes)}` : '';
@@ -455,7 +453,7 @@ function renderTopicCard(topic) {
   }).join('');
 
   return `
-    <article class="topic-card ${escapeAttr(coverage.status)} ${isBlocked ? 'blocked' : ''}">
+    <article class="topic-card ${escapeAttr(coverage.status)}">
       <div class="card-top">
         <div>
           <div class="badges">
@@ -1095,7 +1093,6 @@ function resetFilters() {
   el.ageFilter.value = '120';
   el.coverageFilter.value = 'neacoperit';
   el.sortFilter.value = 'priority';
-  el.includeBlocked.checked = false;
   state.currentCategory = 'toate';
   document.querySelectorAll('.nav-pill').forEach((button) => button.classList.toggle('active', button.dataset.category === 'toate'));
   render();
