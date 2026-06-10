@@ -489,7 +489,6 @@ function renderTopicCard(topic) {
         <button class="btn btn-primary" type="button" data-action="brief" data-id="${escapeAttr(topic.id)}">Brief</button>
         <button class="btn" type="button" data-action="titles" data-id="${escapeAttr(topic.id)}">SEO complet</button>
         <button class="btn" type="button" data-action="contacts" data-id="${escapeAttr(topic.id)}">Contacte + drafturi</button>
-        <button class="btn" type="button" data-action="links" data-id="${escapeAttr(topic.id)}">Linkuri + surse</button>
         <button class="btn" type="button" data-action="draft" data-id="${escapeAttr(topic.id)}">Draft</button>
       </div>
 
@@ -504,7 +503,6 @@ function getApiFeatureLabel(action) {
     brief: 'Brief editorial',
     titles: 'SEO complet',
     contacts: 'Contacte + drafturi mail',
-    links: 'Linkuri + surse',
     draft: 'Draft articol'
   };
   return labels[action] || 'Funcție editorială';
@@ -519,7 +517,7 @@ function showApiConceptNotice(action, topic) {
       <h3>Funcție concept — necesită API AI</h3>
       <p><strong>${escapeHtml(label)}</strong> nu este activ în varianta curentă, pentru că ar trebui conectat un API AI real care să citească sursele, să înțeleagă contextul și să genereze text editorial corect.</p>
       <p>Subiect selectat: <strong>${escapeHtml(title)}</strong></p>
-      <p>În versiunea dezvoltată, acest modul ar genera conținut după regulile redacției Oficiul de Știri: text umanizat, expresii-cheie reale, anti-duplicate, surse verificate și structură gata de lucru editorial.</p>
+      <p>În versiunea finală, modulul ar lucra cu un API AI real și ar folosi regulile redacției Oficiul de Știri: text umanizat, expresii-cheie reale, anti-duplicate, surse verificate și structură gata de lucru editorial.</p>
       ${getApiFeatureDetails(action)}
       <p class="muted">Pentru activare este nevoie de integrare API AI + cost lunar de rulare. Radarul rămâne funcțional pentru scanarea știrilor și identificarea subiectelor apărute recent.</p>
     </div>
@@ -530,30 +528,23 @@ function showApiConceptNotice(action, topic) {
 function getApiFeatureDetails(action) {
   if (action === 'brief') {
     return `<ul>
-      <li>ar identifica unghiul editorial real, diferit de preluarea din presă;</li>
-      <li>ar explica ce contează pentru cititorii din România;</li>
-      <li>ar separa faptele confirmate de reacții, context și pașii următori.</li>
+      <li>ar genera un brief editorial clar despre ce este vorba în subiectul selectat;</li>
+      <li>ar scoate ideile principale, persoanele/instituțiile implicate și informațiile care trebuie verificate;</li>
+      <li>ar propune unghiul editorial util pentru cititor, fără formulări generice și fără preluare mecanică din presă.</li>
     </ul>`;
   }
   if (action === 'titles') {
     return `<ul>
-      <li>ar propune titluri SEO umane, nu variații mecanice;</li>
-      <li>ar genera focus keyword, slug, meta description și H2-uri indexabile;</li>
-      <li>ar folosi expresii-cheie naturale, de tipul celor căutate pe Google.</li>
+      <li>ar furniza un pachet SEO complet pentru subiectul selectat;</li>
+      <li>ar include expresii naturale de indexat, focus keyword, slug, meta description, excerpt și 4 taguri fără diacritice;</li>
+      <li>ar genera variante de titluri și variante de H2-uri relevante, umane și optimizate pentru Google, nu șabloane.</li>
     </ul>`;
   }
   if (action === 'contacts') {
     return `<ul>
-      <li>ar alege instituția sau persoana relevantă pentru fiecare subiect;</li>
-      <li>ar genera întrebări diferite pentru Guvern, MAE, Parchet, club sportiv, minister sau sursa inițială;</li>
-      <li>ar produce drafturi de solicitare clare, fără întrebări identice peste tot.</li>
-    </ul>`;
-  }
-  if (action === 'links') {
-    return `<ul>
-      <li>ar sugera surse externe relevante și linkuri interne Oficiul fără dublură de unghi;</li>
-      <li>ar separa sursa inițială de reacții, documente oficiale și context;</li>
-      <li>ar putea include recomandări de imagini legale doar după verificare.</li>
+      <li>ar furniza contacte relevante pentru subiectul respectiv: instituții, persoane, birouri de presă sau sursa inițială;</li>
+      <li>ar afișa date de contact doar acolo unde sunt disponibile public și nu ar inventa numere sau e-mailuri;</li>
+      <li>ar genera întrebări și drafturi diferite pentru fiecare instituție contactată, în funcție de responsabilitatea ei reală.</li>
     </ul>`;
   }
   if (action === 'draft') {
